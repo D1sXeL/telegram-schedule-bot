@@ -185,13 +185,13 @@ class StudentsSchedule:
             if i.td.text.find(str(datetime.datetime.now(pytz.timezone('Europe/Moscow')).year)) != -1:
                 data_schedule["Расписание"][i.td.text[:10]] = {
                     "День": str(i.td.text[-4:][:2]),
-                    "1": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "2": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "3": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "4": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "5": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "6": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                    "7": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""}}
+                    "1": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "2": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "3": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "4": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "5": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "6": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                    "7": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""}}
 
         for i in data:
             if i.td.text.find(str(datetime.datetime.now(pytz.timezone('Europe/Moscow')).year)) != -1:
@@ -209,8 +209,8 @@ class StudentsSchedule:
 
                 if len(pgr) >= 2:
                     data_schedule["Расписание"][date][temporary_number] = {
-                        "1 подгруппа": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""},
-                        "2 подгруппа": {"Кабинет": "", "Наименование": "", "Тип": "", "Преподаватель": "", "Время": ""}}
+                        "1 подгруппа": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""},
+                        "2 подгруппа": {"Кабинет": "", "Наименование": "", "Преподаватель": "", "Время": ""}}
 
                     for j in test:
                         if j.text.find("Пара") != -1:
@@ -227,18 +227,19 @@ class StudentsSchedule:
                         else:
                             temp = data_schedule["Расписание"][date][temporary_number][f"{count} подгруппа"]
                             temp["Кабинет"] = j.find("a", class_="z2").text
-                            if j.a.text.find("подгр") != -1:
-                                temp["Наименование"] = j.a.text[:-11]
-                            elif j.a.text.find("Дифф. зачет") != -1:
-                                temp["Наименование"] = j.a.text[:-14]
-                            elif j.a.text.find("Инструктаж по практике") != -1:
-                                temp["Наименование"] = j.a.text[:-25]
-                            elif j.a.text.find("Тек. аттест.") != -1:
-                                temp["Наименование"] = j.a.text[:-15]
-                            else:
-                                temp["Наименование"] = j.a.text[:-5]
+                            # if j.a.text.find("подгр") != -1:
+                            #     temp["Наименование"] = j.a.text[:-11]
+                            # elif j.a.text.find("Дифф. зачет") != -1:
+                            #     temp["Наименование"] = j.a.text[:-14]
+                            # elif j.a.text.find("Инструктаж по практике") != -1:
+                            #     temp["Наименование"] = j.a.text[:-25]
+                            # elif j.a.text.find("Тек. аттест.") != -1:
+                            #     temp["Наименование"] = j.a.text[:-15]
+                            # else:
+                            #     temp["Наименование"] = j.a.text[:-5]
+                            temp["Наименование"] = j.a.text
 
-                            temp["Тип"] = "Практика"
+                            # temp["Тип"] = "Практика"
                             temp["Преподаватель"] = j.find("a", class_="z3").text
 
                             count += 1
@@ -253,31 +254,32 @@ class StudentsSchedule:
 
                     temp_data = i.find("td", class_="ur")
 
-                    if temp_data.a.text.find("подгр") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-11]
-                        temp["Тип"] = "Практика"
-                    elif temp_data.a.text.find("Дифф.") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-14]
-                        temp["Тип"] = "Практика"
-                    elif temp_data.a.text.find("Инструктаж по практике") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-25]
-                        temp["Тип"] = "Инструктаж по практике"
-                    elif temp_data.a.text.find("Тек. аттест.") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-15]
-                        temp["Тип"] = "Тек. аттест."
-                    elif temp_data.a.text.find("Подготовка к ДЭ") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-17]
-                        temp["Тип"] = "Подготовка к ДЭ"
-                    elif temp_data.a.text.find("Сем") != -1:
-                        temp["Наименование"] = temp_data.a.text[:-5]
-                        temp["Тип"] = "Сем"
-                    else:
-                        temp["Наименование"] = temp_data.a.text[:-5]
+                    # if temp_data.a.text.find("подгр") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-11]
+                    #     temp["Тип"] = "Практика"
+                    # elif temp_data.a.text.find("Дифф.") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-14]
+                    #     temp["Тип"] = "Практика"
+                    # elif temp_data.a.text.find("Инструктаж по практике") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-25]
+                    #     temp["Тип"] = "Инструктаж по практике"
+                    # elif temp_data.a.text.find("Тек. аттест.") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-15]
+                    #     temp["Тип"] = "Тек. аттест."
+                    # elif temp_data.a.text.find("Подготовка к ДЭ") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-17]
+                    #     temp["Тип"] = "Подготовка к ДЭ"
+                    # elif temp_data.a.text.find("Сем") != -1:
+                    #     temp["Наименование"] = temp_data.a.text[:-5]
+                    #     temp["Тип"] = "Сем"
+                    # else:
+                    # temp["Наименование"] = temp_data.a.text[:-5]
+                    temp["Наименование"] = temp_data.a.text
 
-                    if temp_data.a.text.find("(Пр)") != -1:
-                        temp["Тип"] = "Практика"
-                    elif temp_data.a.text.find("(Лек)") != -1:
-                        temp["Тип"] = "Лекция"
+                    # if temp_data.a.text.find("(Пр)") != -1:
+                    #     temp["Тип"] = "Практика"
+                    # elif temp_data.a.text.find("(Лек)") != -1:
+                    #     temp["Тип"] = "Лекция"
                     temp["Преподаватель"] = temp_data.find("a", class_="z3").text
                     temp["Кабинет"] = temp_data.find("a", class_="z2").text
 
@@ -306,8 +308,8 @@ class StudentsSchedule:
                             finished_text[key] += f"{value} Пара <b>({temp['Время']})</b>\n{i}\n"
                             if data_user['name']:
                                 finished_text[key] += f"{temp['Наименование']}"
-                            if data_user['type']:
-                                finished_text[key] += f"({temp['Тип']})"
+                            # if data_user['type']:
+                            #     finished_text[key] += f"({temp['Тип']})"
                             if data_user['cabinet']:
                                 finished_text[key] += f"\nКабинет - <b>{temp['Кабинет']}</b>"
                             if data_user['teacher']:
@@ -321,8 +323,8 @@ class StudentsSchedule:
 
                         if data_user['name']:
                             finished_text[key] += f"{data['Наименование']}"
-                        if data_user['type']:
-                            finished_text[key] += f"({data['Тип']})"
+                        # if data_user['type']:
+                        #     finished_text[key] += f"({data['Тип']})"
                         if data_user['cabinet']:
                             finished_text[key] += f"\nКабинет - <b>{data['Кабинет']}</b>"
                         if data_user['teacher']:
@@ -722,7 +724,7 @@ async def personal_settings_menu(call, prefix):
         await call.message.edit_text((
                                     f"Настройки:\n\nФормат текста\n"
                                     f"Выводить название предмета: {temp['name']}\n"
-                                    f"Выводить тип(Практика/Лекция): {temp['type']}\n"
+                                    # f"Выводить тип(Практика/Лекция): {temp['type']}\n"
                                     f"Выводить кабинет: {temp['cabinet']}\n"
                                     f"Выводить ФИО преподавателя: {temp['teacher']}").replace("1", "✅").replace("0", "❌"),
                                 reply_markup=markup)
@@ -768,6 +770,7 @@ async def view_next_back_schedule(call, date, group, prefix):
         next_day = list(data.keys())[current_day+1]
         markup.add(InlineKeyboardButton(text=f"<---- {back_day} ", callback_data=f"{prefix}_next_{back_day}_{group}"),
             InlineKeyboardButton(text=f"{next_day} ---->", callback_data=f"{prefix}_next_{next_day}_{group}"))
+
     await call.message.edit_text(text=data[date], reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
