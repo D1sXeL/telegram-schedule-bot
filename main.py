@@ -514,9 +514,7 @@ class User:
             if data[i] == 0:
                 count += 1
 
-        if count == 3 and self.type == "student":
-            data['name'] = 1
-        elif count == 3 and self.type == "teacher":
+        if count == 3:
             data['name'] = 1
 
         with open(f"json/{self.type}_settings.json", "r+", encoding="utf-8") as file:
