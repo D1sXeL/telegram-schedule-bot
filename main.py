@@ -258,7 +258,7 @@ class StudentsSchedule:
         finished_text = dict()
         data_schedule = data["Расписание"]
 
-        data_user = User(user_id, self.type).get_data['format_text']
+        data_user = User(user_id, self.type).get_data[str(user_id)]['format_text']
 
         for key in data_schedule:
             finished_text[key] = ""
@@ -404,6 +404,7 @@ class TeacherSchedule:
                 date = i.td.text[:10]
 
             if i.find('td', class_="ur"):
+
                 if i.td.text.find("Пара") == -1:
                     temporary_number = "1"
                     data_json["Расписание"][date][temporary_number]["Время"] = "8.00-09.40"
@@ -411,7 +412,10 @@ class TeacherSchedule:
                     temporary_number = i.td.text[:1]
                     data_json["Расписание"][date][temporary_number]["Время"] = i.td.text[-11:]
 
-                data_json["Расписание"][date][temporary_number]["Кабинет"] = i.find("a", class_="z2").text
+                try:
+                    data_json["Расписание"][date][temporary_number]["Кабинет"] = i.find("a", class_="z2").text
+                except AttributeError:
+                    pass
 
                 data_json["Расписание"][date][temporary_number]["Группы"] = ", ".join(t.text for t in i.findAll("a",
                                                                                                                 class_=
@@ -427,7 +431,7 @@ class TeacherSchedule:
         finished_text = dict()
         data_schedule = data["Расписание"]
 
-        data_user = User(user_id, self.type).get_data['format_text']
+        data_user = User(user_id, self.type).get_data[str(user_id)]['format_text']
 
         for key in data_schedule:
             finished_text[key] = ""
@@ -470,41 +474,42 @@ class User:
                 temp = json.load(file)
                 file.close()
             try:
-                return temp[self.user_id]
+                temp[self.user_id]
+                return temp
             except KeyError:
                 if self.type == "student":
-                    temp[self.user_id] = {"favourite_group": [],
-                                     "format_text": {"name": 1, "cabinet": 1, "type": 1, "teacher": 1},
+                    temp[self.user_id] = {"favourite_group": {},
+                                     "format_text": {"name": 1, "cabinet": 1, "teacher": 1},
                                      "text_output_type": "standard"}
                 else:
-                    temp[self.user_id] = {"favourite_group": [],
+                    temp[self.user_id] = {"favourite_group": {},
                                           "format_text": {"name": 1, "cabinet": 1, "group": 1}}
 
             with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
                 json.dump(temp, file)
                 file.close()
 
-            return temp[self.user_id]
+            return temp
         else:
             with open(f"json/{self.type}_settings.json", "r+", encoding="utf-8") as file:
                 temp = json.load(file)
                 file.close()
             try:
-                return temp[self.user_id]
+                return temp
             except KeyError:
                 if self.type == "student":
-                    temp[self.user_id] = {"favourite_group": [],
-                                          "format_text": {"name": 1, "cabinet": 1, "type": 1, "teacher": 1},
+                    temp[self.user_id] = {"favourite_group": {},
+                                          "format_text": {"name": 1, "cabinet": 1, "teacher": 1},
                                           "text_output_type": "standard"}
                 else:
-                    temp[self.user_id] = {"favourite_group": [],
+                    temp[self.user_id] = {"favourite_group": {},
                                           "format_text": {"name": 1, "cabinet": 1, "group": 1}}
 
             with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
                 json.dump(temp, file)
                 file.close()
 
-            return temp[self.user_id]
+            return temp
 
     def edit_data_user(self, data):
         user_id = self.user_id
@@ -527,13 +532,27 @@ class User:
             json.dump(temp, file)
             file.close()
 
+    def add_favourite_group(self, name, link):
+
+        data = self.get_data
+        print(data)
+
+        if data[self.user_id]["favourite_group"].get(name) == link:
+            return False
+
+        data[self.user_id]["favourite_group"][name] = link
+
+        with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
+            json.dump(data, file)
+            file.close()
+
 
 async def markup_user(call, prefix="student"):
     markup = InlineKeyboardMarkup(row_width=3)
 
     markup.add(InlineKeyboardButton(text="Расписание", callback_data=f"{prefix}_schedule_menu"),
                InlineKeyboardButton(text="Расписание(избранное)", callback_data=f"{prefix}_schedule_favourite_menu"))
-    markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{prefix}_favourite_add"),
+    markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{prefix}_favourite_view"),
                InlineKeyboardButton(text="Удалить из избранного", callback_data=f"{prefix}_favourite_remove"))
     markup.add(InlineKeyboardButton(text="Поиск по названию", callback_data=f"{prefix}_search"))
     markup.add(InlineKeyboardButton(text="Настройки", callback_data=f"{prefix}_settings_main"))
@@ -568,9 +587,10 @@ async def markup_menu(message, call=0):
                              parse_mode=ParseMode.HTML)
 
 
-async def view_group(call, prefix="student"):
+async def view_group(call, prefix="student_schedule_group"):
     max_size = 100
-    if prefix == "student":
+    temp = prefix.split('_')
+    if temp[0] == "student":
         row_width = 3
         name_group = StudentGroup().conversion_data['Группы']
     else:
@@ -580,7 +600,7 @@ async def view_group(call, prefix="student"):
     markup = InlineKeyboardMarkup(row_width=row_width)
     length_arr = len(name_group)
 
-    if length_arr > 100 and prefix == "teacher":
+    if length_arr > 100 and temp[0] == "teacher":
         count = 0
         keys_group = []
         for i in name_group:
@@ -588,8 +608,7 @@ async def view_group(call, prefix="student"):
                 i1 = f"{i[:17]}"
             else:
                 i1 = i
-
-            keys_group.append(InlineKeyboardButton(text=i1, callback_data=f"{prefix}_schedule_group_{name_group[i]}"))
+            keys_group.append(InlineKeyboardButton(text=i1, callback_data=f"{prefix}_{name_group[i]}"))
             count += 1
 
             if count%max_size == 0:
@@ -600,9 +619,11 @@ async def view_group(call, prefix="student"):
 
                 keys_group = []
                 markup = InlineKeyboardMarkup(row_width=row_width)
+
                 max_size += 100
+
         if(count == length_arr):
-            markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
+            markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
             markup.add(*keys_group)
 
             await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
@@ -610,9 +631,9 @@ async def view_group(call, prefix="student"):
 
     keys_group = []
     for i in name_group:
-        keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_schedule_group_{name_group[i]}"))
+        keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
 
-    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
+    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
     markup.add(*keys_group)
 
@@ -668,6 +689,27 @@ async def view_schedule(call, group, period, prefix):
             break
 
 
+async def view_favourite_group(call, prefix):
+    if prefix == "student":
+        row_width = 3
+    else:
+        row_width = 1
+
+    data = User(str(call.from_user.id), prefix).get_data[str(call.from_user.id)]["favourite_group"]
+
+    markup = InlineKeyboardMarkup(row_width=row_width)
+
+    keys_group = []
+    for i in data.items():
+        keys_group.append(InlineKeyboardButton(text=i[0], callback_data=f"{prefix}_favourite_group_{i[1]}"))
+
+    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
+
+    markup.add(*keys_group)
+
+    await call.message.edit_text(text="Выберите группу", reply_markup=markup)
+
+
 async def personal_settings_menu(call, prefix):
     markup = InlineKeyboardMarkup(row_width=3)
 
@@ -679,7 +721,8 @@ async def personal_settings_menu(call, prefix):
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
 
-        temp = User(call.from_user.id, prefix).get_data['format_text']
+        temp = User(call.from_user.id, prefix).get_data[str(call.from_user.id)]['format_text']
+        print(temp)
         await call.message.edit_text((
                                     f"Настройки:\n\nФормат текста\n"
                                     f"Выводить название предмета: {temp['name']}\n"
@@ -693,7 +736,7 @@ async def personal_settings_menu(call, prefix):
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
 
-        temp = User(call.from_user.id, prefix).get_data['format_text']
+        temp = User(str(call.from_user.id), prefix).get_data[str(call.from_user.id)]['format_text']
         await call.message.edit_text((
                                          f"Настройки:\n\nФормат текста\n"
                                          f"Выводить название предмета: {temp['name']}\n"
@@ -743,13 +786,32 @@ async def func1(call: types.CallbackQuery):
 
         elif req[1] == "schedule":
             if req[2] == 'menu':
-                await view_group(call, req[0])
+                await view_group(call, req[0]+"_schedule_group")
 
             elif req[2] == 'group':
                 await period_schedule(call, req[0], req[3])
 
-            # elif req[2] == "favourite":
-            #     await view_group(call, req[0])
+            elif req[2] == "favourite":
+                await view_favourite_group(call, req[0])
+
+        elif req[1] == "favourite":
+            if req[2] == "view":
+                if len(req) == 3:
+                    await view_group(call, req[0]+"_favourite_append")
+                elif len(req) == 5:
+                    await view_schedule(call, req[3], int(req[4]), req[0])
+
+            elif req[2] == "group":
+                await period_schedule(call, req[0]+"_favourite", req[3])
+
+            elif req[2] == "append":
+                data_group = StudentGroup().conversion_data['Группы']
+                name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
+
+            elif req[2] == "remove":
+                pass
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -761,7 +823,7 @@ async def func1(call: types.CallbackQuery):
             if req[2] == "main":
                 await personal_settings_menu(call, req[0])
             else:
-                temp = User(call.from_user.id, req[0]).get_data['format_text']
+                temp = User(str(call.from_user.id), req[0]).get_data[str(call.from_user.id)]['format_text']
 
                 if req[2] == "name":
                     if temp['name'] == 1:
@@ -797,10 +859,13 @@ async def func1(call: types.CallbackQuery):
 
         elif req[1] == "schedule":
             if req[2] == 'menu':
-                await view_group(call, req[0])
+                await view_group(call, req[0]+"_schedule_group")
 
             elif req[2] == 'group':
                 await period_schedule(call, req[0], req[3])
+
+            elif req[2] == "favourite":
+                await view_favourite_group(call, req[0])
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -812,7 +877,7 @@ async def func1(call: types.CallbackQuery):
             if req[2] == "main":
                 await personal_settings_menu(call, req[0])
             else:
-                temp = User(call.from_user.id, req[0]).get_data['format_text']
+                temp = User(call.from_user.id, req[0]).get_data[str(call.from_user.id)]['format_text']
 
                 if req[2] == "name":
                     if temp['name'] == 1:
@@ -841,27 +906,49 @@ async def func1(call: types.CallbackQuery):
                     User(call.from_user.id, req[0]).edit_data_user(temp)
                     await personal_settings_menu(call, req[0])
 
+        elif req[1] == "favourite" or req[1] == "f":
+            if req[2] == "view":
+                if len(req) == 3:
+                    await view_group(call, req[0] + "_f_a")
+                elif len(req) == 5:
+                    await view_schedule(call, req[3], int(req[4]), req[0])
+
+            elif req[2] == "group":
+                await period_schedule(call, req[0]+"_favourite", req[3])
+
+            elif req[2] == "append" or req[2] == "a":
+                data_group = TeacherGroup().conversion_data['Группы']
+                name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
+
     # ---------------
     elif req[0] == "settings":
         pass
     # ---------------
     elif req[0] == "return":
-        if req[1] == 'main':
+        if req[1] == "main":
             await markup_menu(call.message, 1)
 
-        elif req[1] == 'student':
+        elif req[1] == "student":
             if req[2] == 'menu':
                 await markup_user(call, req[1])
 
-            elif req[2] == 'group':
-                await view_group(call, req[1])
+            elif req[2] == "group":
+                await view_group(call, req[1]+"_schedule_group")
 
-        elif req[1] == 'teacher':
-            if req[2] == 'menu':
+            elif req[2] == "favourite":
+                await view_favourite_group(call, req[1])
+
+        elif req[1] == "teacher":
+            if req[2] == "menu":
                 await markup_user(call, req[1])
 
-            elif req[2] == 'group':
-                await view_group(call, req[1])
+            elif req[2] == "group":
+                await view_group(call, req[1]+"_schedule_group")
+
+            elif req[2] == "favourite":
+                await view_favourite_group(call, req[1])
 
 
 @dp.message_handler(commands=['menu', 'start'])
@@ -874,6 +961,8 @@ if __name__ == "__main__":
         executor.start_polling(dp)  # запуск бота
     except TerminatedByOtherGetUpdates:
         quit()
+
+    # print(TeacherSchedule("cp339.htm", "Саютин В.Н.").conversion_to_json)
 
     # name_group = Group().conversion_data()["ИСП-9.8"]
     # print(StudentsSchedule(name_group).conversion_to_json())
