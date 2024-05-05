@@ -533,9 +533,7 @@ class User:
             file.close()
 
     def add_favourite_group(self, name, link):
-
         data = self.get_data
-        print(data)
 
         if data[self.user_id]["favourite_group"].get(name) == link:
             return False
@@ -545,6 +543,16 @@ class User:
         with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
             json.dump(data, file)
             file.close()
+
+    def remove_favourite_group(self, name):
+        data = self.get_data
+
+        data[self.user_id]["favourite_group"].pop(name)
+
+        with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
+            json.dump(data, file)
+            file.close()
+
 
 
 async def markup_user(call, prefix="student"):
@@ -690,20 +698,22 @@ async def view_schedule(call, group, period, prefix):
 
 
 async def view_favourite_group(call, prefix):
-    if prefix == "student":
+    temp = prefix.split("_")
+    if temp[0] == "student":
         row_width = 3
     else:
         row_width = 1
 
-    data = User(str(call.from_user.id), prefix).get_data[str(call.from_user.id)]["favourite_group"]
+    data = User(str(call.from_user.id), temp[0]).get_data[str(call.from_user.id)]["favourite_group"]
 
     markup = InlineKeyboardMarkup(row_width=row_width)
 
     keys_group = []
     for i in data.items():
-        keys_group.append(InlineKeyboardButton(text=i[0], callback_data=f"{prefix}_favourite_group_{i[1]}"))
+        keys_group.append(InlineKeyboardButton(text=i[0], callback_data=f"{prefix}_{i[1]}"))
+    #     _favourite_group_
 
-    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
+    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
     markup.add(*keys_group)
 
@@ -792,7 +802,7 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "favourite":
-                await view_favourite_group(call, req[0])
+                await view_favourite_group(call, req[0]+"_favourite_group")
 
         elif req[1] == "favourite":
             if req[2] == "view":
@@ -810,8 +820,19 @@ async def func1(call: types.CallbackQuery):
 
                 User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
 
+                await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
+
             elif req[2] == "remove":
-                pass
+                if(len(req) == 3):
+                    await view_favourite_group(call, req[0]+"_favourite_remove")
+                else:
+                    data_group = StudentGroup().conversion_data['Группы']
+                    name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                    User(call.from_user.id, req[0]).remove_favourite_group(name_group)
+
+                    await view_favourite_group(call, req[0]+"_favourite_remove")
+                    await call.message.answer(f"Группа {name_group} была удалена из избранного!")
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -865,7 +886,7 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "favourite":
-                await view_favourite_group(call, req[0])
+                await view_favourite_group(call, req[0]+"_favourite_group")
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -921,6 +942,19 @@ async def func1(call: types.CallbackQuery):
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
                 User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
+                await call.message.answer(f"{name_group} был добавлен в избранное!")
+
+            elif req[2] == "remove":
+                if (len(req) == 3):
+                    await view_favourite_group(call, req[0] + "_favourite_remove")
+                else:
+                    data_group = TeacherGroup().conversion_data['Группы']
+                    name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                    User(call.from_user.id, req[0]).remove_favourite_group(name_group)
+
+                    await view_favourite_group(call, req[0] + "_favourite_remove")
+                    await call.message.answer(f"{name_group} был удален из избранного!")
 
     # ---------------
     elif req[0] == "settings":
@@ -938,7 +972,7 @@ async def func1(call: types.CallbackQuery):
                 await view_group(call, req[1]+"_schedule_group")
 
             elif req[2] == "favourite":
-                await view_favourite_group(call, req[1])
+                await view_favourite_group(call, req[1]+"_favourite_group")
 
         elif req[1] == "teacher":
             if req[2] == "menu":
@@ -948,7 +982,7 @@ async def func1(call: types.CallbackQuery):
                 await view_group(call, req[1]+"_schedule_group")
 
             elif req[2] == "favourite":
-                await view_favourite_group(call, req[1])
+                await view_favourite_group(call, req[1]+"_favourite_group")
 
 
 @dp.message_handler(commands=['menu', 'start'])
