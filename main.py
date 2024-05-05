@@ -7,13 +7,18 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from aiogram.utils.exceptions import TerminatedByOtherGetUpdates
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters import Text
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.dispatcher import FSMContext
 from bs4 import BeautifulSoup
 import requests
 
 
 token = os.environ.get("TOKEN")
 bot = Bot(token=token)
-dp = Dispatcher(bot)
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 
 
 class StudentGroup:
@@ -532,6 +537,7 @@ class User:
             json.dump(temp, file)
             file.close()
 
+
     def add_favourite_group(self, name, link):
         data = self.get_data
 
@@ -554,6 +560,9 @@ class User:
             file.close()
 
 
+class Form(StatesGroup):
+    name = State()
+
 
 async def markup_user(call, prefix="student"):
     markup = InlineKeyboardMarkup(row_width=3)
@@ -562,7 +571,7 @@ async def markup_user(call, prefix="student"):
                InlineKeyboardButton(text="Расписание(избранное)", callback_data=f"{prefix}_schedule_favourite_menu"))
     markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{prefix}_favourite_view"),
                InlineKeyboardButton(text="Удалить из избранного", callback_data=f"{prefix}_favourite_remove"))
-    markup.add(InlineKeyboardButton(text="Поиск по названию", callback_data=f"{prefix}_search"))
+    markup.add(InlineKeyboardButton(text="Поиск", callback_data=f"{prefix}_search_main"))
     markup.add(InlineKeyboardButton(text="Настройки", callback_data=f"{prefix}_settings_main"))
     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data="return_main"))
     if prefix == "student":
@@ -785,6 +794,43 @@ async def view_next_back_schedule(call, date, group, prefix):
     await call.message.edit_text(text=data[date], reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
+@dp.message_handler(state='*', commands='cancel')
+# @dp.message_handler(Text(equals='отмена', ignore_case=True), state='*')
+async def cancel_handler(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+
+    await state.finish()
+    await message.reply('Поиск отменён!')
+
+
+@dp.message_handler(state=Form.name)
+async def process_name(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['name'] = message.text
+
+    await state.finish()
+
+    try:
+        temp = StudentGroup().conversion_data['Группы'][message.text]
+        temp_name = "student"
+    except KeyError:
+        try:
+            temp = TeacherGroup().conversion_data['Группы'][message.text]
+            temp_name = "teacher"
+        except KeyError:
+            await message.answer("Ошибка!")
+            return False
+
+    markup = InlineKeyboardMarkup(row_width=3)
+
+    markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{temp_name}_search_add_{temp}"))
+    markup.add(InlineKeyboardButton(text="Получить расписание", callback_data=f"{temp_name}_search_view_{temp}"))
+
+    await message.answer(text="Выберите действие", reply_markup=markup)
+
+
 @dp.callback_query_handler()
 async def func1(call: types.CallbackQuery):
     req = call.data.split('_')
@@ -873,6 +919,22 @@ async def func1(call: types.CallbackQuery):
                     User(call.from_user.id, req[0]).edit_data_user(temp)
                     await personal_settings_menu(call, req[0])
 
+        elif req[1] == "search":
+            if req[2] == "view":
+                await period_schedule(call, req[0], req[3])
+
+            elif req[2] == "add":
+                data_group = StudentGroup().conversion_data['Группы']
+                name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
+
+                await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
+
+            elif req[2] == "main":
+                await Form.name.set()
+                await call.message.answer("Введите название группы(Вводить нужно как на сайте). Для отмены введите команду /cancel")
+
     # ------------------
     elif req[0] == "teacher":
         if req[1] == "menu":
@@ -955,6 +1017,22 @@ async def func1(call: types.CallbackQuery):
 
                     await view_favourite_group(call, req[0] + "_favourite_remove")
                     await call.message.answer(f"{name_group} был удален из избранного!")
+
+        elif req[1] == "search":
+            if req[2] == "view":
+                await period_schedule(call, req[0], req[3])
+
+            elif req[2] == "add":
+                data_group = TeacherGroup().conversion_data['Группы']
+                name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
+
+                User(call.from_user.id, req[0]).add_favourite_group(name_group, req[3])
+
+                await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
+
+            elif req[2] == "main":
+                await Form.name.set()
+                await call.message.answer("Введите ФИО(Вводить нужно как на сайте). Для отмены введите команду /cancel")
 
     # ---------------
     elif req[0] == "settings":
