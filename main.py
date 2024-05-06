@@ -8,7 +8,6 @@ from aiogram.utils import executor
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ParseMode
 from aiogram.utils.exceptions import TerminatedByOtherGetUpdates
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.dispatcher import FSMContext
 from bs4 import BeautifulSoup
@@ -21,10 +20,12 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 
+# Класс связанный с группами студентов
 class StudentGroup:
     name = "student"
     url = "https://omacademy.ru/rasp-new/Website-students/cg.htm"
 
+    # Получение необработанных данных
     @property
     def get_data(self):
         page = requests.get(self.url)
@@ -34,6 +35,7 @@ class StudentGroup:
 
         return soup
 
+    # Обработка данных в формат json
     @property
     def conversion_data(self):
         if self.check_update:
@@ -52,6 +54,7 @@ class StudentGroup:
 
             return data
 
+    # Проверка на существование файла с группами
     @property
     def exists_file(self):
         if not os.path.exists("json"):
@@ -63,11 +66,13 @@ class StudentGroup:
                 file.close()
             return True
 
+    # Запись данных в в файл
     def write_file(self, data):
         with open(f"json/all_{self.name}_group.json", "w", encoding="utf-8") as file:
             json.dump(data, file)
             file.close()
 
+    # Получение данных из файла
     @property
     def read_file(self):
         with open(f"json/all_{self.name}_group.json", "r", encoding="utf-8") as file:
@@ -76,6 +81,7 @@ class StudentGroup:
 
         return data
 
+    # Проверка на необходимость обновления данных. Данные обновляются при условии, что давность данных превышает 2 часа
     @property
     def check_update(self):
         if self.exists_file:
@@ -101,17 +107,20 @@ class StudentGroup:
             return False
 
 
+# Класс связанный с преподавателями
 class TeacherGroup(StudentGroup):
     name = "teacher"
     url = "https://omacademy.ru/rasp-new/Website-students/cp.htm"
 
 
+# Класс связанный с расписанием для студента
 class StudentsSchedule:
     def __init__(self, url, name_group):
         self.__url = f"https://omacademy.ru/rasp-new/Website-students/{url}"
         self.name_group = name_group
         self.type = "student"
 
+    # Получение необработанных данных
     @property
     def get_data(self):
         page = requests.get(self.__url)
@@ -121,6 +130,7 @@ class StudentsSchedule:
 
         return soup
 
+    # Проверка на существование файлов с расписанием определенной группы
     @property
     def check_exists(self):
         if not os.path.exists('./json/groups'):
@@ -130,6 +140,8 @@ class StudentsSchedule:
             with open(f'./json/groups/{self.name_group}.json', 'w', encoding="utf-8") as file:
                 file.write('{}')
                 file.close()
+
+    # Запись данных в файл
     @property
     def write_file(self):
         self.check_exists
@@ -139,6 +151,7 @@ class StudentsSchedule:
             json.dump(data, file)
             file.close()
 
+    # Проверка на необходимость обновления данных. Данные обновляются при условии, что давность данных превышает 2 часа
     @property
     def check_update(self):
         self.check_exists
@@ -163,6 +176,7 @@ class StudentsSchedule:
         else:
             return False
 
+    # Получение данных из файла
     @property
     def get_data_file(self):
         if self.check_update:
@@ -174,6 +188,7 @@ class StudentsSchedule:
 
         return data
 
+    # Преобразование данных в формат json
     @property
     def conversion_to_json(self):
         data = self.get_data
@@ -257,6 +272,7 @@ class StudentsSchedule:
                     data_schedule["Обновлено"] = date_now
         return data_schedule
 
+    # Преобразование данных в готовый текст с учетом пользовательских настроек
     def conversion_to_text(self, user_id):
         data = self.get_data_file
 
@@ -305,12 +321,14 @@ class StudentsSchedule:
         return finished_text
 
 
+# Класс связанный с расписанием преподавателей
 class TeacherSchedule:
     def __init__(self, url, name_group):
         self.__url = f"https://omacademy.ru/rasp-new/Website-students/{url}"
         self.type = 'teacher'
         self.name_group = name_group
 
+    # Получение необработанных данных
     @property
     def get_data(self):
         page = requests.get(self.__url)
@@ -320,6 +338,7 @@ class TeacherSchedule:
 
         return soup
 
+    # Проверка на сущестование файлов преподавателей
     @property
     def check_exists(self):
         if not os.path.exists(f'./json/{self.type}'):
@@ -330,6 +349,7 @@ class TeacherSchedule:
                 file.write('{}')
                 file.close()
 
+    # Запись данных в файл
     @property
     def write_file(self):
         self.check_exists
@@ -339,6 +359,7 @@ class TeacherSchedule:
             json.dump(data, file)
             file.close()
 
+    # Проверка на неоходимость обновления данных. Данные обновляются при условии, что давность данных превышает 1 часа
     @property
     def check_update(self):
         self.check_exists
@@ -367,6 +388,7 @@ class TeacherSchedule:
         else:
             return False
 
+    # Получение данных из файла
     @property
     def get_data_file(self):
         if self.check_update:
@@ -378,6 +400,7 @@ class TeacherSchedule:
 
         return data
 
+    # Преобразование данных в формат json
     @property
     def conversion_to_json(self):
         data = self.get_data
@@ -430,6 +453,7 @@ class TeacherSchedule:
 
         return data_json
 
+    # Преобразование данных в готовый текст с учетом пользовательских настроек
     def conversion_to_text(self, user_id):
         data = self.get_data_file
 
@@ -463,11 +487,13 @@ class TeacherSchedule:
         return finished_text
 
 
+# Класс связанный с настройками пользователей
 class User:
     def __init__(self, user_id, type):
         self.user_id = str(user_id)
         self.type = type
 
+    # Получение данных. Проверка на существование. Создание файлов
     @property
     def get_data(self):
         if not os.path.exists(f"json/{self.type}_settings.json"):
@@ -516,6 +542,7 @@ class User:
 
             return temp
 
+    # Изменение данных пользователей в файле
     def edit_data_user(self, data):
         user_id = self.user_id
 
@@ -537,7 +564,7 @@ class User:
             json.dump(temp, file)
             file.close()
 
-
+    # Добавление избранной группы
     def add_favourite_group(self, name, link):
         data = self.get_data
 
@@ -550,6 +577,7 @@ class User:
             json.dump(data, file)
             file.close()
 
+    # Удаление избранной группы
     def remove_favourite_group(self, name):
         data = self.get_data
 
@@ -560,10 +588,12 @@ class User:
             file.close()
 
 
+# Класс необходим для ожидания сообщения от пользователя.
 class Form(StatesGroup):
     name = State()
 
 
+# Меню студента/преподавателя
 async def markup_user(call, prefix="student"):
     markup = InlineKeyboardMarkup(row_width=3)
 
@@ -582,13 +612,7 @@ async def markup_user(call, prefix="student"):
     await call.message.edit_text(text=text, reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
-# -----------------------------
-
-
-# async def markup_teacher(call):
-#     await markup_user(call, "teacher")
-
-
+# Главное меню
 async def markup_menu(message, call=0):
     markup = InlineKeyboardMarkup(row_width=3)
 
@@ -667,7 +691,7 @@ async def period_schedule(call, prefix, group):
                InlineKeyboardButton(text="Полностью", callback_data=f"{prefix}_view_{group}_{14}"))
     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_group"))
 
-    await call.message.edit_text(text="Выберите на какой период показать расписание", reply_markup=markup)
+    await call.message.edit_text(text="Выберите за какой период показать расписание", reply_markup=markup)
 
 
 async def view_schedule(call, group, period, prefix):
@@ -690,9 +714,11 @@ async def view_schedule(call, group, period, prefix):
                 await call.message.answer(text=data[date.strftime("%d.%m.%Y")], parse_mode=ParseMode.HTML)
                 break
 
-            await call.message.answer(text=data[i], parse_mode=ParseMode.HTML)
+            temp = datetime.datetime(int(i[-4:]), int(i[-7:-5:]), int(i[:2])) - datetime.datetime.now()
 
-            count += 1
+            if temp.days == -1 and temp.seconds / 60 / 60 <= 24 or temp.days >= 0:
+                await call.message.answer(text=data[i], parse_mode=ParseMode.HTML)
+                count += 1
 
             if count == period:
                 break
@@ -702,8 +728,10 @@ async def view_schedule(call, group, period, prefix):
 
         markup.add(InlineKeyboardButton(text=f"{next_day} ---->", callback_data=f"{prefix}_next_{next_day}_{group}"))
         for i in data:
-            await call.message.answer(text=data[i], reply_markup=markup, parse_mode=ParseMode.HTML)
-            break
+            temp = datetime.datetime(int(i[-4:]), int(i[-7:-5:]), int(i[:2])) - datetime.datetime.now()
+            if temp.days == -1 and temp.seconds / 60 / 60 <= 24 or temp.days >= 0:
+                await call.message.answer(text=data[i], reply_markup=markup, parse_mode=ParseMode.HTML)
+                break
 
 
 async def view_favourite_group(call, prefix):
@@ -720,7 +748,6 @@ async def view_favourite_group(call, prefix):
     keys_group = []
     for i in data.items():
         keys_group.append(InlineKeyboardButton(text=i[0], callback_data=f"{prefix}_{i[1]}"))
-    #     _favourite_group_
 
     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
@@ -795,7 +822,6 @@ async def view_next_back_schedule(call, date, group, prefix):
 
 
 @dp.message_handler(state='*', commands='cancel')
-# @dp.message_handler(Text(equals='отмена', ignore_case=True), state='*')
 async def cancel_handler(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     if current_state is None:
@@ -1073,27 +1099,3 @@ if __name__ == "__main__":
         executor.start_polling(dp)  # запуск бота
     except TerminatedByOtherGetUpdates:
         quit()
-
-    # print(TeacherSchedule("cp339.htm", "Саютин В.Н.").conversion_to_json)
-
-    # name_group = Group().conversion_data()["ИСП-9.8"]
-    # print(StudentsSchedule(name_group).conversion_to_json())
-    # print(StudentGroup().conversion_data)
-    # print(TeacherGroup().conversion_data)
-    # TeacherSchedule("cp207.htm").conversion_to_json()
-    # data = StudentsSchedule(StudentGroup().conversion_data['Группы']['ИСП-9.8']).conversion_to_text(1054278219)
-    # for i in data:
-    #     print(data[i])
-
-    # data = {"asd": 1, "123213": "AS"}
-    # st = time.time()
-    # print(list(data.keys())[list(data.values()).index("AS")])
-
-    # data = StudentGroup().conversion_data['Группы']
-    # print(StudentsSchedule(list(data.keys())[list(data.values()).index('cg142.htm')]).conversion_to_json)
-
-    # print(StudentsSchedule('cg15.htm').get_data_file('ИСП-9.8'))
-    # data = StudentGroup().conversion_data['Группы']
-    # print(list(data.keys())[list(data.values()).index('cg179.htm')])
-    # cg179.htm
-
