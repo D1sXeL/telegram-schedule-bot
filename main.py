@@ -28,7 +28,7 @@ class StudentGroup:
 
     # Получение необработанных данных
     @property
-    def get_data(self):
+    async def get_data(self):
         page = requests.get(self.url)
         page.encoding = "utf-8"
 
@@ -38,26 +38,26 @@ class StudentGroup:
 
     # Обработка данных в формат json
     @property
-    def conversion_data(self):
-        if self.check_update:
-            data = self.get_data
+    async def conversion_data(self):
+        if await self.check_update:
+            data = await self.get_data
             name_list = {"Обновлено": datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M"),
                          "Группы" : {}}
 
             for i in data.findAll("a", class_="z0"):
                 name_list["Группы"][i.text] = i.attrs['href']
 
-            self.write_file(name_list)
+            await self.write_file(name_list)
 
             return name_list
         else:
-            data = self.read_file
+            data = await self.read_file
 
             return data
 
     # Проверка на существование файла с группами
     @property
-    def exists_file(self):
+    async def exists_file(self):
         if not os.path.exists("json"):
             os.mkdir("json")
 
@@ -68,14 +68,14 @@ class StudentGroup:
             return True
 
     # Запись данных в в файл
-    def write_file(self, data):
+    async def write_file(self, data):
         with open(f"json/all_{self.name}_group.json", "w", encoding="utf-8") as file:
             json.dump(data, file)
             file.close()
 
     # Получение данных из файла
     @property
-    def read_file(self):
+    async def read_file(self):
         with open(f"json/all_{self.name}_group.json", "r", encoding="utf-8") as file:
             data = json.load(file)
             file.close()
@@ -84,8 +84,8 @@ class StudentGroup:
 
     # Проверка на необходимость обновления данных. Данные обновляются при условии, что давность данных превышает 2 часа
     @property
-    def check_update(self):
-        if self.exists_file:
+    async def check_update(self):
+        if await self.exists_file:
             return True
 
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
@@ -123,7 +123,7 @@ class StudentsSchedule:
 
     # Получение необработанных данных
     @property
-    def get_data(self):
+    async def get_data(self):
         page = requests.get(self.__url)
         page.encoding = "utf-8"
 
@@ -133,7 +133,7 @@ class StudentsSchedule:
 
     # Проверка на существование файлов с расписанием определенной группы
     @property
-    def check_exists(self):
+    async def check_exists(self):
         if not os.path.exists(f'./json/{self.type}'):
             os.mkdir(f'./json/{self.type}')
 
@@ -144,18 +144,18 @@ class StudentsSchedule:
 
     # Запись данных в файл
     @property
-    def write_file(self):
-        self.check_exists
+    async def write_file(self):
+        await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
-            data = self.conversion_to_json
+            data = await self.conversion_to_json
             json.dump(data, file)
             file.close()
 
     # Проверка на необходимость обновления данных. Данные обновляются при условии, что давность данных превышает 2 часа
     @property
-    def check_update(self):
-        self.check_exists
+    async def check_update(self):
+        await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -179,9 +179,9 @@ class StudentsSchedule:
 
     # Получение данных из файла
     @property
-    def get_data_file(self):
-        if self.check_update:
-            self.write_file
+    async def get_data_file(self):
+        if await self.check_update:
+            await self.write_file
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -191,8 +191,8 @@ class StudentsSchedule:
 
     # Преобразование данных в формат json
     @property
-    def conversion_to_json(self):
-        data = self.get_data
+    async def conversion_to_json(self):
+        data = await self.get_data
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
 
         data_schedule = dict()
@@ -274,13 +274,13 @@ class StudentsSchedule:
         return data_schedule
 
     # Преобразование данных в готовый текст с учетом пользовательских настроек
-    def conversion_to_text(self, user_id):
-        data = self.get_data_file
+    async def conversion_to_text(self, user_id):
+        data = await self.get_data_file
 
         finished_text = dict()
         data_schedule = data["Расписание"]
 
-        data_user = User(self.type, user_id).get_data[str(user_id)]['format_text']
+        data_user = (await User(self.type, user_id).get_data)[str(user_id)]['format_text']
 
         for key in data_schedule:
             finished_text[key] = ""
@@ -322,7 +322,7 @@ class StudentsSchedule:
         return finished_text
 
     # Преобразование данных в готовый текст для оповещения
-    def conversion_to_text_notification(self, data):
+    async def conversion_to_text_notification(self, data):
         finished_text = dict()
         data_schedule = data
 
@@ -363,7 +363,7 @@ class StudentsSchedule:
             #     await bot.send_message(chat_id=user_id, text=finished_text[i])
 
     # Проверка на наличие изменений
-    def check_change(self, data_old, data_new):
+    async def check_change(self, data_old, data_new):
         change = {}
         temp_change = False
 
@@ -397,7 +397,7 @@ class StudentsSchedule:
                             temp_change = True
 
         if temp_change is True:
-            id_profile = User(type=self.type).get_id_favourite(self.name_group)
+            id_profile = await User(type=self.type).get_id_favourite(self.name_group)
             print(id_profile)
 
         if id_profile is None:
@@ -409,12 +409,12 @@ class StudentsSchedule:
             else:
                 del change[i]['change']
 
-        data = self.conversion_to_text_notification(change)
-        asyncio.run(notification_schedule(data, id_profile))
-        # for id in id_profile:
-        #     bot.send_message(chat_id=id, text="Оповещение об изменении в расписании")
-        #     for j in data:
-        #         bot.send_message(chat_id=id, text=data[j], parse_mode=ParseMode.HTML)
+        data = await self.conversion_to_text_notification(change)
+        # asyncio.run(notification_schedule(data, id_profile))
+        for id in id_profile:
+            await bot.send_message(chat_id=id, text="Оповещение об изменении в расписании")
+            for j in data:
+                await bot.send_message(chat_id=id, text=data[j], parse_mode=ParseMode.HTML)
 
 
 # Класс связанный с расписанием преподавателей
@@ -426,7 +426,7 @@ class TeacherSchedule:
 
     # Получение необработанных данных
     @property
-    def get_data(self):
+    async def get_data(self):
         page = requests.get(self.__url)
         page.encoding = "utf-8"
 
@@ -436,7 +436,7 @@ class TeacherSchedule:
 
     # Проверка на сущестование файлов преподавателей
     @property
-    def check_exists(self):
+    async def check_exists(self):
         if not os.path.exists(f'./json/{self.type}'):
             os.mkdir(f'./json/{self.type}')
 
@@ -447,18 +447,18 @@ class TeacherSchedule:
 
     # Запись данных в файл
     @property
-    def write_file(self):
-        self.check_exists
+    async def write_file(self):
+        await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
-            data = self.conversion_to_json
+            data = await self.conversion_to_json
             json.dump(data, file)
             file.close()
 
     # Проверка на неоходимость обновления данных. Данные обновляются при условии, что давность данных превышает 1 часа
     @property
-    def check_update(self):
-        self.check_exists
+    async def check_update(self):
+        await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -486,9 +486,9 @@ class TeacherSchedule:
 
     # Получение данных из файла
     @property
-    def get_data_file(self):
-        if self.check_update:
-            self.write_file
+    async def get_data_file(self):
+        if await self.check_update:
+            await self.write_file
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -498,8 +498,8 @@ class TeacherSchedule:
 
     # Преобразование данных в формат json
     @property
-    def conversion_to_json(self):
-        data = self.get_data
+    async def conversion_to_json(self):
+        data = await self.get_data
         data_json = dict()
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
 
@@ -550,13 +550,13 @@ class TeacherSchedule:
         return data_json
 
     # Преобразование данных в готовый текст с учетом пользовательских настроек
-    def conversion_to_text(self, user_id):
-        data = self.get_data_file
+    async def conversion_to_text(self, user_id):
+        data = await self.get_data_file
 
         finished_text = dict()
         data_schedule = data["Расписание"]
 
-        data_user = User(self.type, user_id).get_data[str(user_id)]['format_text']
+        data_user = (await User(self.type, user_id).get_data)[str(user_id)]['format_text']
 
         for key in data_schedule:
             finished_text[key] = ""
@@ -591,7 +591,7 @@ class User:
 
     # Проверка на существование файла
     @property
-    def check_exists(self):
+    async def check_exists(self):
         if not os.path.exists(f"json/{self.type}_settings.json"):
             with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
                 file.write("{}")
@@ -603,8 +603,8 @@ class User:
 
     # Получение данных. Проверка на существование. Создание файлов
     @property
-    def get_data(self):
-        if not self.check_exists:
+    async def get_data(self):
+        if not await self.check_exists:
             with open(f"json/{self.type}_settings.json", "r+", encoding="utf-8") as file:
                 temp = json.load(file)
                 file.close()
@@ -652,8 +652,8 @@ class User:
 
     # Получение данных без всяких проверок
     @property
-    def get_data_file(self):
-        if self.check_exists:
+    async def get_data_file(self):
+        if await self.check_exists:
 
             with open(f"json/{self.type}_settings.json", "r+", encoding="utf-8") as file:
                 data = json.load(file)
@@ -664,15 +664,15 @@ class User:
             return None
 
     # Изменение данных пользователей в файле
-    def edit_data_user(self, data):
+    async def edit_data_user(self, data):
         user_id = self.user_id
 
         count = 0
-        for i in data:
-            if data[i] == 0:
+        for i in data['format_text']:
+            if data['format_text'][i] == 0:
                 count += 1
 
-        if count == 4:
+        if count == 3:
             data['format_text']['name'] = 1
 
         with open(f"json/{self.type}_settings.json", "r+", encoding="utf-8") as file:
@@ -686,8 +686,8 @@ class User:
             file.close()
 
     # Добавление избранной группы
-    def add_favourite_group(self, name, link):
-        data = self.get_data
+    async def add_favourite_group(self, name, link):
+        data = await self.get_data
 
         if data[self.user_id]["favourite_group"].get(name) == link:
             return False
@@ -699,8 +699,8 @@ class User:
             file.close()
 
     # Удаление избранной группы
-    def remove_favourite_group(self, name):
-        data = self.get_data
+    async def remove_favourite_group(self, name):
+        data = await self.get_data
 
         data[self.user_id]["favourite_group"].pop(name)
 
@@ -709,8 +709,8 @@ class User:
             file.close()
 
     # Получение айди пользователей для оповещения об изменениях
-    def get_id_favourite(self, name_group):
-        data = self.get_data_file
+    async def get_id_favourite(self, name_group):
+        data = await self.get_data_file
         id_profile = list()
 
         if data is None:
@@ -775,10 +775,10 @@ async def view_group(call, prefix="student_schedule_group"):
     temp = prefix.split('_')
     if temp[0] == "student":
         row_width = 3
-        name_group = StudentGroup().conversion_data['Группы']
+        name_group = (await StudentGroup().conversion_data)['Группы']
     else:
         row_width = 1
-        name_group = TeacherGroup().conversion_data['Группы']
+        name_group = (await TeacherGroup().conversion_data)['Группы']
 
     markup = InlineKeyboardMarkup(row_width=row_width)
     length_arr = len(name_group)
@@ -838,13 +838,13 @@ async def period_schedule(call, prefix, group):
 
 async def view_schedule(call, group, period, prefix):
     if prefix == "student":
-        data_group = StudentGroup().conversion_data['Группы']
+        data_group = (await StudentGroup().conversion_data)['Группы']
         name_group = list(data_group.keys())[list(data_group.values()).index(group)]
-        data = StudentsSchedule(group, name_group).conversion_to_text(call.from_user.id)
+        data = await StudentsSchedule(group, name_group).conversion_to_text(call.from_user.id)
     else:
-        data_group = TeacherGroup().conversion_data['Группы']
+        data_group = (await TeacherGroup().conversion_data)['Группы']
         name_group = list(data_group.keys())[list(data_group.values()).index(group)]
-        data = TeacherSchedule(group, name_group).conversion_to_text(call.from_user.id)
+        data = await TeacherSchedule(group, name_group).conversion_to_text(call.from_user.id)
 
     if period > 0:
         count = 0
@@ -883,7 +883,7 @@ async def view_favourite_group(call, prefix):
     else:
         row_width = 1
 
-    data = User(temp[0], str(call.from_user.id)).get_data[str(call.from_user.id)]["favourite_group"]
+    data = (await User(temp[0], str(call.from_user.id)).get_data)[str(call.from_user.id)]["favourite_group"]
 
     markup = InlineKeyboardMarkup(row_width=row_width)
 
@@ -909,7 +909,7 @@ async def personal_settings_menu(call, prefix):
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
 
-        data = User(prefix, call.from_user.id).get_data[str(call.from_user.id)]
+        data = (await User(prefix, call.from_user.id).get_data)[str(call.from_user.id)]
         temp = data['format_text']
         print(temp)
         await call.message.edit_text((
@@ -927,7 +927,7 @@ async def personal_settings_menu(call, prefix):
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
 
-        data = User(prefix, call.from_user.id).get_data[str(call.from_user.id)]
+        data = (await User(prefix, call.from_user.id).get_data)[str(call.from_user.id)]
         temp = data['format_text']
         await call.message.edit_text((
                                          f"Настройки:\n\nФормат текста\n"
@@ -940,14 +940,14 @@ async def personal_settings_menu(call, prefix):
 
 async def view_next_back_schedule(call, date, group, prefix):
     if prefix == "student":
-        temp = StudentGroup().conversion_data['Группы']
+        temp = (await StudentGroup().conversion_data)['Группы']
         name_group = list(temp.keys())[list(temp.values()).index(group)]
 
-        data = StudentsSchedule(group, name_group).conversion_to_text(call.from_user.id)
+        data = await StudentsSchedule(group, name_group).conversion_to_text(call.from_user.id)
     else:
-        temp = TeacherGroup().conversion_data['Группы']
+        temp = (await TeacherGroup().conversion_data)['Группы']
         name_group = list(temp.keys())[list(temp.values()).index(group)]
-        data = TeacherSchedule(group, name_group).conversion_to_text(call.from_user.id)
+        data = await TeacherSchedule(group, name_group).conversion_to_text(call.from_user.id)
 
     markup = InlineKeyboardMarkup(row_width=3)
     current_day = list(data.keys()).index(date)
@@ -985,11 +985,11 @@ async def process_name(message: types.Message, state: FSMContext):
     await state.finish()
 
     try:
-        temp = StudentGroup().conversion_data['Группы'][message.text]
+        temp = (await StudentGroup().conversion_data)['Группы'][message.text]
         temp_name = "student"
     except KeyError:
         try:
-            temp = TeacherGroup().conversion_data['Группы'][message.text]
+            temp = (await TeacherGroup().conversion_data)['Группы'][message.text]
             temp_name = "teacher"
         except KeyError:
             await message.answer("Ошибка!")
@@ -1033,10 +1033,10 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0]+"_favourite", req[3])
 
             elif req[2] == "append":
-                data_group = StudentGroup().conversion_data['Группы']
+                data_group = (await StudentGroup().conversion_data)['Группы']
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
+                await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
 
                 await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
 
@@ -1044,10 +1044,10 @@ async def func1(call: types.CallbackQuery):
                 if(len(req) == 3):
                     await view_favourite_group(call, req[0]+"_favourite_remove")
                 else:
-                    data_group = StudentGroup().conversion_data['Группы']
+                    data_group = (await StudentGroup().conversion_data)['Группы']
                     name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                    User(req[0], call.from_user.id).remove_favourite_group(name_group)
+                    await User(req[0], call.from_user.id).remove_favourite_group(name_group)
 
                     await view_favourite_group(call, req[0]+"_favourite_remove")
                     await call.message.answer(f"Группа {name_group} была удалена из избранного!")
@@ -1062,7 +1062,7 @@ async def func1(call: types.CallbackQuery):
             if req[2] == "main":
                 await personal_settings_menu(call, req[0])
             else:
-                data = User(req[0], call.from_user.id).get_data[str(call.from_user.id)]
+                data = (await User(req[0], call.from_user.id).get_data)[str(call.from_user.id)]
                 temp = data['format_text']
 
                 if req[2] == "name":
@@ -1071,7 +1071,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['name'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "cabinet":
@@ -1080,7 +1080,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['cabinet'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "teacher":
@@ -1089,7 +1089,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['teacher'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "notification":
@@ -1098,7 +1098,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         data['get_notifications'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
         elif req[1] == "search":
@@ -1106,10 +1106,10 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "add":
-                data_group = StudentGroup().conversion_data['Группы']
+                data_group = (await StudentGroup().conversion_data)['Группы']
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
+                await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
 
                 await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
 
@@ -1142,7 +1142,7 @@ async def func1(call: types.CallbackQuery):
             if req[2] == "main":
                 await personal_settings_menu(call, req[0])
             else:
-                data = User(req[0], call.from_user.id).get_data[str(call.from_user.id)]
+                data = (await User(req[0], call.from_user.id).get_data)[str(call.from_user.id)]
                 temp = data['format_text']
 
                 if req[2] == "name":
@@ -1151,7 +1151,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['name'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "cabinet":
@@ -1160,7 +1160,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['cabinet'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "groups":
@@ -1169,7 +1169,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         temp['group'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
                 elif req[2] == "notification":
@@ -1178,7 +1178,7 @@ async def func1(call: types.CallbackQuery):
                     else:
                         data['get_notifications'] = 1
 
-                    User(req[0], call.from_user.id).edit_data_user(data)
+                    await User(req[0], call.from_user.id).edit_data_user(data)
                     await personal_settings_menu(call, req[0])
 
         elif req[1] == "favourite" or req[1] == "f":
@@ -1192,20 +1192,20 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0]+"_favourite", req[3])
 
             elif req[2] == "append" or req[2] == "a":
-                data_group = TeacherGroup().conversion_data['Группы']
+                data_group = (await TeacherGroup().conversion_data)['Группы']
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
+                await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
                 await call.message.answer(f"{name_group} был добавлен в избранное!")
 
             elif req[2] == "remove":
                 if (len(req) == 3):
                     await view_favourite_group(call, req[0] + "_favourite_remove")
                 else:
-                    data_group = TeacherGroup().conversion_data['Группы']
+                    data_group = (await TeacherGroup().conversion_data)['Группы']
                     name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                    User(req[0], call.from_user.id).remove_favourite_group(name_group)
+                    await User(req[0], call.from_user.id).remove_favourite_group(name_group)
 
                     await view_favourite_group(call, req[0] + "_favourite_remove")
                     await call.message.answer(f"{name_group} был удален из избранного!")
@@ -1215,10 +1215,10 @@ async def func1(call: types.CallbackQuery):
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "add":
-                data_group = TeacherGroup().conversion_data['Группы']
+                data_group = (await TeacherGroup().conversion_data)['Группы']
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
-                User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
+                await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
 
                 await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
 
@@ -1260,14 +1260,133 @@ async def menu(message: types.Message):
     await markup_menu(message)
 
 
+async def test():
+    data_old = {'Обновлено': '09.05.2024 17:53', 'Расписание': {
+        '08.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '09.05.2024': {'День': 'Чт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '10.05.2024': {'День': 'Пт', '1': {'Кабинет': '322',
+                                           'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)',
+                                           'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '8.00-09.40'},
+                       '2': {'Кабинет': '324122',
+                             'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)',
+                             'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '10.00-11.40'},
+                       '3': {'Кабинет': '322',
+                             'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)',
+                             'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '12.00-13.40'},
+                       '4': {'Кабинет': '321', 'Наименование': 'Психологический тренинг (Сем)',
+                             'Преподаватель': 'Зачиняева Мария Андреевна', 'Время': '14.00-15.40'},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '11.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '12.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '13.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '14.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '15.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '16.05.2024': {'День': 'Чт', '1': {'Кабинет': '312',
+                                           'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)',
+                                           'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '8.00-09.40'},
+                       '2': {'Кабинет': '312',
+                             'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)',
+                             'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '10.00-11.40'},
+                       '3': {'Кабинет': '312',
+                             'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)',
+                             'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '12.00-13.40'},
+                       '4': {'Кабинет': '312',
+                             'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)',
+                             'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '14.00-15.40'},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '17.05.2024': {'День': 'Пт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '18.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '19.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '20.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}},
+        '21.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''},
+                       '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}}}
+
+    data_new = await StudentsSchedule("cg15.htm", "ИСП-9.8").get_data_file
+
+    await StudentsSchedule("cg15.htm", "ИСП-9.8").check_change(data_old, data_new)
+
+
 if __name__ == "__main__":
     try:
         executor.start_polling(dp)  # запуск бота
     except TerminatedByOtherGetUpdates:
         quit()
-    # data_old = {'Обновлено': '09.05.2024 17:53', 'Расписание': {'08.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '09.05.2024': {'День': 'Чт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '10.05.2024': {'День': 'Пт', '1': {'Кабинет': '322', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '8.00-09.40'}, '2': {'Кабинет': '324122', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '10.00-11.40'}, '3': {'Кабинет': '322', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '12.00-13.40'}, '4': {'Кабинет': '321', 'Наименование': 'Психологический тренинг (Сем)', 'Преподаватель': 'Зачиняева Мария Андреевна', 'Время': '14.00-15.40'}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '11.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '12.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '13.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '14.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '15.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '16.05.2024': {'День': 'Чт', '1': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '8.00-09.40'}, '2': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '10.00-11.40'}, '3': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '12.00-13.40'}, '4': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '14.00-15.40'}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '17.05.2024': {'День': 'Пт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '18.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '19.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '20.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '21.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}}}
-    #
-    # data_new = StudentsSchedule("cg15.htm", "ИСП-9.8").get_data_file
-    #
-    # StudentsSchedule("cg15.htm", "ИСП-9.8").check_change(data_old, data_new)
+
+    # asyncio.run(test())
+
 
