@@ -253,7 +253,7 @@ class StudentsSchedule:
 
                             temp["Наименование"] = j.a.text
 
-                            temp["Преподаватель"] = j.find("a", class_="z3").text
+                            temp["Преподаватель"] = ", ".join(t.text for t in j.findAll("a", class_="z3"))
 
                             count += 1
 
@@ -269,7 +269,7 @@ class StudentsSchedule:
 
                     temp["Наименование"] = temp_data.a.text
 
-                    temp["Преподаватель"] = temp_data.find("a", class_="z3").text
+                    temp["Преподаватель"] = ", ".join(t.text for t in temp_data.findAll("a", class_="z3"))
                     temp["Кабинет"] = temp_data.find("a", class_="z2").text
 
                     data_schedule["Обновлено"] = date_now
@@ -900,7 +900,6 @@ async def markup_menu(message, call=0):
 
 
 async def view_group(call, prefix="student_schedule_group", step=None):
-    print(prefix)
     max_size = 90
     temp = prefix.split('_')
 
@@ -926,7 +925,7 @@ async def view_group(call, prefix="student_schedule_group", step=None):
                 break
 
         markup.add(*keys_group)
-        markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr/max_size)})--->", callback_data=f"{temp[0]}_g_n_{i}"))
+        markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr/max_size)})--->", callback_data=f"{temp[0]}_{temp[1]}_n_{i}"))
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
     elif step < 0:
@@ -945,19 +944,19 @@ async def view_group(call, prefix="student_schedule_group", step=None):
         if 0 < step < length_arr:
             markup.add(InlineKeyboardButton(
                 text=f"<---({round(length_arr / step)}/{math.ceil(length_arr / max_size)})",
-                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_b_{step-max_size}"))
             markup.add(InlineKeyboardButton(
                 text=f"({math.ceil(step/max_size)}/{math.ceil(length_arr / step)})--->",
-                callback_data=f"{temp[0]}_g_n_{step+max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_n_{step+max_size}"))
 
         elif max_size+step >= length_arr:
             markup.add(InlineKeyboardButton(
                 text=f"<---({math.ceil(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
-                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_b_{step-max_size}"))
 
         elif length_arr - step <= 0:
             markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})-->",
-                                        callback_data=f"{temp[0]}_g_n_{step}"))
+                                        callback_data=f"{temp[0]}_{temp[1]}_n_{step}"))
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
@@ -980,187 +979,25 @@ async def view_group(call, prefix="student_schedule_group", step=None):
         if length_arr - step > 0 and max_size + step < length_arr:
             markup.add(InlineKeyboardButton(
                 text=f"<---({math.ceil((step+step) / max_size)}/{math.ceil(length_arr / max_size)})",
-                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_b_{step-max_size}"))
             markup.add(InlineKeyboardButton(
                 text=f"({math.ceil((step+step) / max_size)}/{math.ceil(length_arr / max_size)})--->",
-                callback_data=f"{temp[0]}_g_n_{step+max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_n_{step+max_size}"))
 
         elif max_size+step >= length_arr:
             markup.add(InlineKeyboardButton(
                 text=f"<---({math.ceil(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
-                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+                callback_data=f"{temp[0]}_{temp[1]}_b_{step-max_size}"))
 
         elif length_arr - step <= 0:
             markup.add(
                 InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})-->",
-                                     callback_data=f"{temp[0]}_g_n_{step+max_size}"))
+                                     callback_data=f"{temp[0]}_{temp[1]}_n_{step+max_size}"))
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
     await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
                                           parse_mode=ParseMode.HTML)
-
-
-    # max_size = 96
-    # temp = prefix.split('_')
-    # if temp[0] == "student":
-    #     row_width = 3
-    #     name_group = (await StudentGroup().conversion_data)['Группы']
-    # else:
-    #     row_width = 1
-    #     name_group = (await TeacherGroup().conversion_data)['Группы']
-    #
-    # markup = InlineKeyboardMarkup(row_width=row_width)
-    # length_arr = len(name_group)
-    #
-    # if length_arr > 100 and temp[0] == "teacher":
-    #     group_keys = list(name_group.keys())
-    #
-    #     if step is not None:
-    #         if step > 0:
-    #             count = 0
-    #             keys_group = []
-    #             for i in range(step, length_arr):
-    #                 is_use = False
-    #                 keys_group.append(
-    #                     InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
-    #                 if count == max_size:
-    #                     markup.add(*keys_group)
-    #                     markup.add(
-    #                         InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #                     is_use = True
-    #                     break
-    #                 count += 1
-    #
-    #             if is_use is False:
-    #                 markup.add(*keys_group)
-    #                 markup.add(
-    #                     InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #
-    #
-    #             if step + max_size > length_arr:
-    #                 markup.add(
-    #                     InlineKeyboardButton(
-    #                         text=f"<---({math.ceil(length_arr / step)}/{math.ceil(length_arr / max_size)})",
-    #                         callback_data=f"{temp[0]}_g_b_{count}"))
-    #             if step + max_size < length_arr and step - 97 >= 0:
-    #                 print(step+max_size)
-    #                 print(step-max_size)
-    #                 markup.add(InlineKeyboardButton(text=f"<---({math.ceil((step+count) / max_size)}/{math.ceil(length_arr / max_size)})",
-    #                                                 callback_data=f"{temp[0]}_g_b_{step}"),
-    #                            InlineKeyboardButton(text=f"({math.ceil(length_arr/ step)}/{math.ceil(length_arr / max_size)})--->",
-    #                                                 callback_data=f"{temp[0]}_g_n_{step}"))
-    #                 print(markup)
-    #
-    #             if step-max_size<=0:
-    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
-    #                                                 callback_data=f"{temp[0]}_g_n_97"))
-    #
-    #             await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
-    #                                       parse_mode=ParseMode.HTML)
-    #         else:
-    #             count = 0
-    #             keys_group = []
-    #             for i in range(0, length_arr-step*-1+1):
-    #                 is_use = False
-    #                 keys_group.append(
-    #                     InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
-    #                 if count == 97:
-    #                     markup.add(*keys_group)
-    #                     markup.add(
-    #                         InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #                     is_use = True
-    #                     break
-    #                 count += 1
-    #
-    #             if is_use is False:
-    #                 markup.add(*keys_group)
-    #
-    #             if step + max_size > length_arr:
-    #                 markup.add(
-    #                     InlineKeyboardButton(
-    #                         text=f"<---({math.ceil(length_arr/max_size)}/{math.ceil(length_arr / max_size)})",
-    #                         callback_data=f"{temp[0]}_g_b_{step}"))
-    #
-    #             if step + max_size < length_arr and step - max_size >= 0:
-    #                 markup.add(InlineKeyboardButton(text=f"<---({int(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
-    #                                                 callback_data=f"{temp[0]}_g_b_{step}"),
-    #                            InlineKeyboardButton(text=f"({int(step / max_size)}/{math.ceil(length_arr / max_size)})--->",
-    #                                                 callback_data=f"{temp[0]}_g_n_{step}"))
-    #             if step-97<=0:
-    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
-    #                                                 callback_data=f"{temp[0]}_g_n_97"))
-    #
-    #             await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
-    #                                       parse_mode=ParseMode.HTML)
-    #     else:
-    #         keys_group = []
-    #         for i in range(0, 98):
-    #             keys_group.append(
-    #                 InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
-    #             if i == max_size:
-    #                 markup.add(*keys_group)
-    #                 markup.add(
-    #                     InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #
-    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
-    #                                                 callback_data=f"{temp[0]}_g_n_{i}"))
-    #                 break
-    #
-    #         await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
-    #                                   parse_mode=ParseMode.HTML)
-
-
-        # count = 0
-        # keys_group = []
-        # for i in name_group:
-        #     keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
-        #     count += 1
-        #
-        #     if count%max_size == 0:
-        #         markup.add(*keys_group)
-        #         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
-        #
-        #         await call.message.answer(text="------ Выберите преподавателя -------", reply_markup=markup, parse_mode=ParseMode.HTML)
-        #
-        #         keys_group = []
-        #         markup = InlineKeyboardMarkup(row_width=row_width)
-        #
-        #         max_size += 100
-        #
-        # if(count == length_arr):
-        #     markup.add(*keys_group)
-        #     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-        #
-        #     await call.message.answer(text="------ Выберите преподавателя ------", reply_markup=markup, parse_mode=ParseMode.HTML)
-    # return True
-    #
-    # keys_group = []
-    # count = 1
-    # send_message = False
-    # for i in name_group:
-    #     if i == "Заявка" or i == "Совещание":
-    #         pass
-    #     else:
-    #         keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
-    #         if count % 99 == 0:
-    #             markup.add(*keys_group)
-    #             keys_group = []
-    #
-    #             markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #             await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
-    #
-    #             markup = InlineKeyboardMarkup(row_width=row_width)
-    #             send_message = True
-    #             count = 1
-    #
-    #         send_message = False
-    #         count += 1
-    #
-    # if send_message is False:
-    #     markup.add(*keys_group)
-    #     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-    #     await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
 async def period_schedule(call, prefix, group):
@@ -1369,8 +1206,7 @@ async def func1(call: types.CallbackQuery):
             elif req[2] == "favourite":
                 await view_favourite_group(call, req[0]+"_favourite_group")
 
-        elif req[1] == "g":
-            if req[2] == "n":
+            elif req[2] == "n":
                 await view_group(call, req[0]+"_s_g", int(req[3]))
 
             elif req[2] == "b":
@@ -1405,6 +1241,12 @@ async def func1(call: types.CallbackQuery):
 
                     await view_favourite_group(call, req[0]+"_favourite_remove")
                     await call.message.answer(f"Группа {name_group} была удалена из избранного!")
+
+            elif req[2] == "n":
+                await view_group(call, req[0]+"_f_a", int(req[3]))
+
+            elif req[2] == "b":
+                await view_group(call, req[0]+"_f_a", int(req[3])*-1)
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -1486,8 +1328,7 @@ async def func1(call: types.CallbackQuery):
             elif req[2] == "favourite":
                 await view_favourite_group(call, req[0]+"_favourite_group")
 
-        elif req[1] == "g":
-            if req[2] == "n":
+            elif req[2] == "n":
                 await view_group(call, req[0]+"_s_g", int(req[3]))
             elif req[2] == "b":
                 await view_group(call, req[0] + "_s_g", int(req[3])*-1)
@@ -1569,6 +1410,12 @@ async def func1(call: types.CallbackQuery):
 
                     await view_favourite_group(call, req[0] + "_favourite_remove")
                     await call.message.answer(f"{name_group} был(а) удален(а) из избранного!")
+
+            elif req[2] == "n":
+                await view_group(call, req[0]+"_f_a", int(req[3]))
+
+            elif req[2] == "b":
+                await view_group(call, req[0]+"_f_a", int(req[3])*-1)
 
         elif req[1] == "search":
             if req[2] == "view":
