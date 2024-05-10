@@ -13,6 +13,8 @@ from aiogram.dispatcher import FSMContext
 from bs4 import BeautifulSoup
 import requests
 import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import math
 
 
 token = os.environ.get("TOKEN")
@@ -143,12 +145,12 @@ class StudentsSchedule:
                 file.close()
 
     # Запись данных в файл
-    @property
-    async def write_file(self):
+    async def write_file(self, data=None):
         await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
-            data = await self.conversion_to_json
+            if data is None:
+                data = await self.conversion_to_json
             json.dump(data, file)
             file.close()
 
@@ -178,10 +180,10 @@ class StudentsSchedule:
             return False
 
     # Получение данных из файла
-    @property
-    async def get_data_file(self):
-        if await self.check_update:
-            await self.write_file
+    async def get_data_file(self, check_update=True):
+        if check_update:
+            if await self.check_update:
+                await self.write_file()
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -275,7 +277,7 @@ class StudentsSchedule:
 
     # Преобразование данных в готовый текст с учетом пользовательских настроек
     async def conversion_to_text(self, user_id):
-        data = await self.get_data_file
+        data = await self.get_data_file()
 
         finished_text = dict()
         data_schedule = data["Расписание"]
@@ -360,10 +362,13 @@ class StudentsSchedule:
             return finished_text
 
     # Проверка на наличие изменений
-    async def check_change(self, data_old, data_new):
+    async def check_change(self):
+        data_old = await self.get_data_file(check_update=False)
+
+        data_new = await self.conversion_to_json
+        await self.write_file(data_new)
         change = {}
         temp_change = False
-
         for i in data_new['Расписание']:
             change[i] = data_new['Расписание'][i]
             change[i]['change'] = "false"
@@ -450,7 +455,7 @@ class StudentsSchedule:
         data = await self.conversion_to_text_notification(change)
 
         for id in id_profile:
-            await bot.send_message(chat_id=id, text="Оповещение об изменении в расписании")
+            await bot.send_message(chat_id=id, text=f"Оповещение об изменении в расписании\nГруппа - {self.name_group}")
             for j in data:
                 await bot.send_message(chat_id=id, text=data[j], parse_mode=ParseMode.HTML)
 
@@ -484,12 +489,12 @@ class TeacherSchedule:
                 file.close()
 
     # Запись данных в файл
-    @property
-    async def write_file(self):
+    async def write_file(self, data=None):
         await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
-            data = await self.conversion_to_json
+            if data is None:
+                data = await self.conversion_to_json
             json.dump(data, file)
             file.close()
 
@@ -523,10 +528,10 @@ class TeacherSchedule:
             return False
 
     # Получение данных из файла
-    @property
-    async def get_data_file(self):
-        if await self.check_update:
-            await self.write_file
+    async def get_data_file(self, check_update=True):
+        if check_update:
+            if await self.check_update:
+                await self.write_file()
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -537,7 +542,9 @@ class TeacherSchedule:
     # Преобразование данных в формат json
     @property
     async def conversion_to_json(self):
+        st = time.time()
         data = await self.get_data
+        print(time.time()-st)
         data_json = dict()
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
 
@@ -589,7 +596,7 @@ class TeacherSchedule:
 
     # Преобразование данных в готовый текст с учетом пользовательских настроек
     async def conversion_to_text(self, user_id):
-        data = await self.get_data_file
+        data = await self.get_data_file()
 
         finished_text = dict()
         data_schedule = data["Расписание"]
@@ -646,7 +653,12 @@ class TeacherSchedule:
         return finished_text
 
     # Проверка на наличие изменений
-    async def check_change(self, data_old, data_new):
+    async def check_change(self):
+        data_old = await self.get_data_file(check_update=False)
+
+        data_new = await self.conversion_to_json
+        await self.write_file(data_new)
+
         change = {}
         temp_change = False
 
@@ -823,6 +835,24 @@ class User:
 
         return id_profile
 
+    # Получение айди пользователей с включенным оповещением об изменении расписания
+    @property
+    async def get_name_group_alert_enable(self):
+        data = await self.get_data_file
+
+        if data is None:
+            return None
+
+        groups = dict()
+
+        for i in data:
+            if data[i]['get_notifications'] == 1:
+                for j in data[i]['favourite_group']:
+                    if j in data[i]['favourite_group']:
+                        groups[j] = data[i]['favourite_group'][j]
+
+        return groups
+
 
 # Класс необходим для ожидания сообщения от пользователя.
 class Form(StatesGroup):
@@ -860,8 +890,7 @@ async def markup_menu(message, call=0):
 
     markup.add(InlineKeyboardButton(text="Студенту", callback_data="student_menu"),
                InlineKeyboardButton(text="Преподавателю", callback_data="teacher_menu"))
-    markup.add(InlineKeyboardButton(text="Настройки", callback_data="settings"))
-    
+
     if call == 0:
         await message.answer("-------------------------Главное Меню-------------------------", reply_markup=markup,
              parse_mode=ParseMode.HTML)
@@ -870,9 +899,11 @@ async def markup_menu(message, call=0):
                              parse_mode=ParseMode.HTML)
 
 
-async def view_group(call, prefix="student_schedule_group"):
-    max_size = 100
+async def view_group(call, prefix="student_schedule_group", step=None):
+    print(prefix)
+    max_size = 90
     temp = prefix.split('_')
+
     if temp[0] == "student":
         row_width = 3
         name_group = (await StudentGroup().conversion_data)['Группы']
@@ -883,44 +914,253 @@ async def view_group(call, prefix="student_schedule_group"):
     markup = InlineKeyboardMarkup(row_width=row_width)
     length_arr = len(name_group)
 
-    if length_arr > 100 and temp[0] == "teacher":
-        count = 0
+    group_keys = list(name_group.keys())
+
+    if step is None or step == 0:
         keys_group = []
-        for i in name_group:
-            if len(i) > 17:
-                i1 = f"{i[:17]}"
-            else:
-                i1 = i
-            keys_group.append(InlineKeyboardButton(text=i1, callback_data=f"{prefix}_{name_group[i]}"))
+
+        for i in range(0, max_size+1):
+            try:
+                keys_group.append(InlineKeyboardButton(text=f"{group_keys[i]}", callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+            except IndexError:
+                break
+
+        markup.add(*keys_group)
+        markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr/max_size)})--->", callback_data=f"{temp[0]}_g_n_{i}"))
+        markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+
+    elif step < 0:
+        step *= -1
+        keys_group = []
+
+        for i in range(step, step+max_size):
+            try:
+                keys_group.append(InlineKeyboardButton(text=f"{group_keys[i]}",
+                                                   callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+            except IndexError:
+                break
+
+        markup.add(*keys_group)
+
+        if 0 < step < length_arr:
+            markup.add(InlineKeyboardButton(
+                text=f"<---({round(length_arr / step)}/{math.ceil(length_arr / max_size)})",
+                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+            markup.add(InlineKeyboardButton(
+                text=f"({math.ceil(step/max_size)}/{math.ceil(length_arr / step)})--->",
+                callback_data=f"{temp[0]}_g_n_{step+max_size}"))
+
+        elif max_size+step >= length_arr:
+            markup.add(InlineKeyboardButton(
+                text=f"<---({math.ceil(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
+                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+
+        elif length_arr - step <= 0:
+            markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})-->",
+                                        callback_data=f"{temp[0]}_g_n_{step}"))
+
+        markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+
+    elif step > 0:
+        keys_group = []
+
+        count = 0
+        for i in range(step, step+max_size):
+            try:
+                keys_group.append(InlineKeyboardButton(text=f"{group_keys[i]}",
+                                                       callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+            except IndexError:
+                break
+
+            if count == max_size:
+                break
             count += 1
 
-            if count%max_size == 0:
-                markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
-                markup.add(*keys_group)
+        markup.add(*keys_group)
+        if length_arr - step > 0 and max_size + step < length_arr:
+            markup.add(InlineKeyboardButton(
+                text=f"<---({math.ceil((step+step) / max_size)}/{math.ceil(length_arr / max_size)})",
+                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
+            markup.add(InlineKeyboardButton(
+                text=f"({math.ceil((step+step) / max_size)}/{math.ceil(length_arr / max_size)})--->",
+                callback_data=f"{temp[0]}_g_n_{step+max_size}"))
 
-                await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
+        elif max_size+step >= length_arr:
+            markup.add(InlineKeyboardButton(
+                text=f"<---({math.ceil(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
+                callback_data=f"{temp[0]}_g_b_{step-max_size}"))
 
-                keys_group = []
-                markup = InlineKeyboardMarkup(row_width=row_width)
+        elif length_arr - step <= 0:
+            markup.add(
+                InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})-->",
+                                     callback_data=f"{temp[0]}_g_n_{step+max_size}"))
 
-                max_size += 100
+        markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
-        if(count == length_arr):
-            markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-            markup.add(*keys_group)
+    await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
+                                          parse_mode=ParseMode.HTML)
 
-            await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
-        return True
 
-    keys_group = []
-    for i in name_group:
-        keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
+    # max_size = 96
+    # temp = prefix.split('_')
+    # if temp[0] == "student":
+    #     row_width = 3
+    #     name_group = (await StudentGroup().conversion_data)['Группы']
+    # else:
+    #     row_width = 1
+    #     name_group = (await TeacherGroup().conversion_data)['Группы']
+    #
+    # markup = InlineKeyboardMarkup(row_width=row_width)
+    # length_arr = len(name_group)
+    #
+    # if length_arr > 100 and temp[0] == "teacher":
+    #     group_keys = list(name_group.keys())
+    #
+    #     if step is not None:
+    #         if step > 0:
+    #             count = 0
+    #             keys_group = []
+    #             for i in range(step, length_arr):
+    #                 is_use = False
+    #                 keys_group.append(
+    #                     InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+    #                 if count == max_size:
+    #                     markup.add(*keys_group)
+    #                     markup.add(
+    #                         InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #                     is_use = True
+    #                     break
+    #                 count += 1
+    #
+    #             if is_use is False:
+    #                 markup.add(*keys_group)
+    #                 markup.add(
+    #                     InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #
+    #
+    #             if step + max_size > length_arr:
+    #                 markup.add(
+    #                     InlineKeyboardButton(
+    #                         text=f"<---({math.ceil(length_arr / step)}/{math.ceil(length_arr / max_size)})",
+    #                         callback_data=f"{temp[0]}_g_b_{count}"))
+    #             if step + max_size < length_arr and step - 97 >= 0:
+    #                 print(step+max_size)
+    #                 print(step-max_size)
+    #                 markup.add(InlineKeyboardButton(text=f"<---({math.ceil((step+count) / max_size)}/{math.ceil(length_arr / max_size)})",
+    #                                                 callback_data=f"{temp[0]}_g_b_{step}"),
+    #                            InlineKeyboardButton(text=f"({math.ceil(length_arr/ step)}/{math.ceil(length_arr / max_size)})--->",
+    #                                                 callback_data=f"{temp[0]}_g_n_{step}"))
+    #                 print(markup)
+    #
+    #             if step-max_size<=0:
+    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
+    #                                                 callback_data=f"{temp[0]}_g_n_97"))
+    #
+    #             await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
+    #                                       parse_mode=ParseMode.HTML)
+    #         else:
+    #             count = 0
+    #             keys_group = []
+    #             for i in range(0, length_arr-step*-1+1):
+    #                 is_use = False
+    #                 keys_group.append(
+    #                     InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+    #                 if count == 97:
+    #                     markup.add(*keys_group)
+    #                     markup.add(
+    #                         InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #                     is_use = True
+    #                     break
+    #                 count += 1
+    #
+    #             if is_use is False:
+    #                 markup.add(*keys_group)
+    #
+    #             if step + max_size > length_arr:
+    #                 markup.add(
+    #                     InlineKeyboardButton(
+    #                         text=f"<---({math.ceil(length_arr/max_size)}/{math.ceil(length_arr / max_size)})",
+    #                         callback_data=f"{temp[0]}_g_b_{step}"))
+    #
+    #             if step + max_size < length_arr and step - max_size >= 0:
+    #                 markup.add(InlineKeyboardButton(text=f"<---({int(length_arr / max_size)}/{math.ceil(length_arr / max_size)})",
+    #                                                 callback_data=f"{temp[0]}_g_b_{step}"),
+    #                            InlineKeyboardButton(text=f"({int(step / max_size)}/{math.ceil(length_arr / max_size)})--->",
+    #                                                 callback_data=f"{temp[0]}_g_n_{step}"))
+    #             if step-97<=0:
+    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
+    #                                                 callback_data=f"{temp[0]}_g_n_97"))
+    #
+    #             await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
+    #                                       parse_mode=ParseMode.HTML)
+    #     else:
+    #         keys_group = []
+    #         for i in range(0, 98):
+    #             keys_group.append(
+    #                 InlineKeyboardButton(text=group_keys[i], callback_data=f"{prefix}_{name_group[group_keys[i]]}"))
+    #             if i == max_size:
+    #                 markup.add(*keys_group)
+    #                 markup.add(
+    #                     InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #
+    #                 markup.add(InlineKeyboardButton(text=f"(1/{math.ceil(length_arr / max_size)})--->",
+    #                                                 callback_data=f"{temp[0]}_g_n_{i}"))
+    #                 break
+    #
+    #         await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
+    #                                   parse_mode=ParseMode.HTML)
 
-    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
-    markup.add(*keys_group)
-
-    await call.message.edit_text(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
+        # count = 0
+        # keys_group = []
+        # for i in name_group:
+        #     keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
+        #     count += 1
+        #
+        #     if count%max_size == 0:
+        #         markup.add(*keys_group)
+        #         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
+        #
+        #         await call.message.answer(text="------ Выберите преподавателя -------", reply_markup=markup, parse_mode=ParseMode.HTML)
+        #
+        #         keys_group = []
+        #         markup = InlineKeyboardMarkup(row_width=row_width)
+        #
+        #         max_size += 100
+        #
+        # if(count == length_arr):
+        #     markup.add(*keys_group)
+        #     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+        #
+        #     await call.message.answer(text="------ Выберите преподавателя ------", reply_markup=markup, parse_mode=ParseMode.HTML)
+    # return True
+    #
+    # keys_group = []
+    # count = 1
+    # send_message = False
+    # for i in name_group:
+    #     if i == "Заявка" or i == "Совещание":
+    #         pass
+    #     else:
+    #         keys_group.append(InlineKeyboardButton(text=i, callback_data=f"{prefix}_{name_group[i]}"))
+    #         if count % 99 == 0:
+    #             markup.add(*keys_group)
+    #             keys_group = []
+    #
+    #             markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #             await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
+    #
+    #             markup = InlineKeyboardMarkup(row_width=row_width)
+    #             send_message = True
+    #             count = 1
+    #
+    #         send_message = False
+    #         count += 1
+    #
+    # if send_message is False:
+    #     markup.add(*keys_group)
+    #     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
+    #     await call.message.answer(text="Выберите группу", reply_markup=markup, parse_mode=ParseMode.HTML)
 
 
 async def period_schedule(call, prefix, group):
@@ -993,9 +1233,8 @@ async def view_favourite_group(call, prefix):
     for i in data.items():
         keys_group.append(InlineKeyboardButton(text=i[0], callback_data=f"{prefix}_{i[1]}"))
 
-    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
-
     markup.add(*keys_group)
+    markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
     await call.message.edit_text(text="Выберите группу", reply_markup=markup)
 
@@ -1120,27 +1359,34 @@ async def func1(call: types.CallbackQuery):
         if req[1] == "menu":
             await markup_user(call)
 
-        elif req[1] == "schedule":
+        elif req[1] == "schedule" or req[1] == "s":
             if req[2] == 'menu':
                 await view_group(call, req[0]+"_schedule_group")
 
-            elif req[2] == 'group':
+            elif req[2] == 'group' or req[2] == "g":
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "favourite":
                 await view_favourite_group(call, req[0]+"_favourite_group")
 
-        elif req[1] == "favourite":
+        elif req[1] == "g":
+            if req[2] == "n":
+                await view_group(call, req[0]+"_s_g", int(req[3]))
+
+            elif req[2] == "b":
+                await view_group(call, req[0]+"_s_g", int(req[3])*-1)
+
+        elif req[1] == "favourite" or req[1] == "f":
             if req[2] == "view":
                 if len(req) == 3:
-                    await view_group(call, req[0]+"_favourite_append")
+                    await view_group(call, req[0]+"_f_a")
                 elif len(req) == 5:
                     await view_schedule(call, req[3], int(req[4]), req[0])
 
             elif req[2] == "group":
                 await period_schedule(call, req[0]+"_favourite", req[3])
 
-            elif req[2] == "append":
+            elif req[2] == "append" or req[2] == "a":
                 data_group = (await StudentGroup().conversion_data)['Группы']
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
@@ -1230,15 +1476,21 @@ async def func1(call: types.CallbackQuery):
         if req[1] == "menu":
             await markup_user(call, "teacher")
 
-        elif req[1] == "schedule":
+        elif req[1] == "schedule" or req[1] == "s":
             if req[2] == 'menu':
-                await view_group(call, req[0]+"_schedule_group")
+                await view_group(call, req[0]+"_s_g")
 
-            elif req[2] == 'group':
+            elif req[2] == 'group' or req[2] == "g":
                 await period_schedule(call, req[0], req[3])
 
             elif req[2] == "favourite":
                 await view_favourite_group(call, req[0]+"_favourite_group")
+
+        elif req[1] == "g":
+            if req[2] == "n":
+                await view_group(call, req[0]+"_s_g", int(req[3]))
+            elif req[2] == "b":
+                await view_group(call, req[0] + "_s_g", int(req[3])*-1)
 
         elif req[1] == "view":
             await view_schedule(call, req[2], int(req[3]), req[0])
@@ -1304,7 +1556,7 @@ async def func1(call: types.CallbackQuery):
                 name_group = list(data_group.keys())[list(data_group.values()).index(req[3])]
 
                 await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
-                await call.message.answer(f"{name_group} был добавлен в избранное!")
+                await call.message.answer(f"{name_group} был(а) добавлен(а) в избранное!")
 
             elif req[2] == "remove":
                 if (len(req) == 3):
@@ -1316,7 +1568,7 @@ async def func1(call: types.CallbackQuery):
                     await User(req[0], call.from_user.id).remove_favourite_group(name_group)
 
                     await view_favourite_group(call, req[0] + "_favourite_remove")
-                    await call.message.answer(f"{name_group} был удален из избранного!")
+                    await call.message.answer(f"{name_group} был(а) удален(а) из избранного!")
 
         elif req[1] == "search":
             if req[2] == "view":
@@ -1328,15 +1580,12 @@ async def func1(call: types.CallbackQuery):
 
                 await User(req[0], call.from_user.id).add_favourite_group(name_group, req[3])
 
-                await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
+                await call.message.answer(f"{name_group} был(а) добавлен(а) в избранное!")
 
             elif req[2] == "main":
                 await Form.name.set()
                 await call.message.answer("Введите ФИО(Вводить нужно как на сайте). Для отмены введите команду /cancel")
 
-    # ---------------
-    elif req[0] == "settings":
-        pass
     # ---------------
     elif req[0] == "return":
         if req[1] == "main":
@@ -1357,7 +1606,7 @@ async def func1(call: types.CallbackQuery):
                 await markup_user(call, req[1])
 
             elif req[2] == "group":
-                await view_group(call, req[1]+"_schedule_group")
+                await view_group(call, req[1]+"_s_g")
 
             elif req[2] == "favourite":
                 await view_favourite_group(call, req[1]+"_favourite_group")
@@ -1371,15 +1620,50 @@ async def menu(message: types.Message):
 async def test():
     data_old = {'Обновлено': '09.05.2024 21:28', 'Расписание': {'08.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '09.05.2024': {'День': 'Чт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '10.05.2024': {'День': 'Пт', '1': {'Кабинет': '322', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '8.00-09.40'}, '2': {'Кабинет': '322', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '10.00-11.40'}, '3': {'Кабинет': '322', 'Наименование': 'ПМ.07 Соадминистр. баз данных и серверов (Подготовка к ДЭ)', 'Преподаватель': 'Саютин Владимир Николаевич', 'Время': '12.00-13.40'}, '4': {'Кабинет': '321', 'Наименование': 'Психологический тренинг (Сем)', 'Преподаватель': 'Зачиняева Мария Андреевна', 'Время': '14.00-15.40'}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '11.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '12.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '13.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '14.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '15.05.2024': {'День': 'Ср', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '16.05.2024': {'День': 'Чт', '1': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '8.00-09.40'}, '2': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '10.00-11.40'}, '3': {'Кабинет': '312', 'Наименование': 'Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '12.00-13.40'}, '4': {'Кабинет': '312', 'Наименование': 'ФИГНЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯЯ Защита отчетов по практике (Защита отчетов по практике)', 'Преподаватель': 'Миронова Елена Дмитриевна', 'Время': '14.00-15.40'}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '17.05.2024': {'День': 'Пт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '18.05.2024': {'День': 'Сб', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '19.05.2024': {'День': 'Вс', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '20.05.2024': {'День': 'Пн', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}}, '21.05.2024': {'День': 'Вт', '1': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '2': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '3': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '4': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '5': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '6': {'Кабинет': '', 'Наименование': '', 'Преподаватель': '', 'Время': ''}, '7': {'Кабинет': '', 'Наименование': '12321232', 'Преподаватель': '', 'Время': ''}}}}
 
-    data_new = await StudentsSchedule("cg15.htm", "ИСП-9.8").get_data_file
+    data_new = await StudentsSchedule("cg15.htm", "ИСП-9.8").get_data_file()
+    print(data_new)
+    # await StudentsSchedule("cg15.htm", "ИСП-9.8").check_change(data_old, data_new)
 
-    await StudentsSchedule("cg15.htm", "ИСП-9.8").check_change(data_old, data_new)
+
+async def check_change_schedule():
+    print('Enable')
+    data_name = await User("student").get_name_group_alert_enable
+
+    if data_name is not None:
+        count = 0
+        for i in data_name:
+            print(i)
+            await StudentsSchedule(name_group=i, url=data_name[i]).check_change()
+            count += 1
+
+            if count % 10 == 0:
+                await asyncio.sleep(5)
+
+        await asyncio.sleep(5)
+
+    data_name = await User("teacher").get_name_group_alert_enable
+
+    if data_name is not None:
+        count = 0
+        for i in data_name:
+            print(i)
+            await TeacherSchedule(name_group=i, url=data_name[i]).check_change()
+            count += 1
+
+            if count % 10 == 0:
+                await asyncio.sleep(5)
+
+
+async def on_startup(_):
+    scheduler = AsyncIOScheduler(timezone="Asia/Omsk")
+    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sat", minute="*/30")
+    scheduler.start()
 
 
 if __name__ == "__main__":
-    # try:
-    #     executor.start_polling(dp)  # запуск бота
-    # except TerminatedByOtherGetUpdates:
-    #     quit()
-    #
-    asyncio.run(test())
+    try:
+        executor.start_polling(dp, on_startup=on_startup)  # запуск бота
+    except TerminatedByOtherGetUpdates:
+        quit()
+
+    # asyncio.run(test())
