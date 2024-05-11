@@ -1518,7 +1518,7 @@ async def check_change_schedule():
 
 async def on_startup(_):
     scheduler = AsyncIOScheduler(timezone="Asia/Omsk")
-    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sun", minute="*/30")
+    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sat", minute="*/30")
     scheduler.start()
 
 
