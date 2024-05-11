@@ -300,7 +300,7 @@ class StudentsSchedule:
                 elif temp_arr[0].find("подгруппа") != -1:
                     for i in temp_arr:
                         temp = data_schedule[key][value][i]
-                        if temp['Наименование'] != "":
+                        if temp['Наименование'] != "" or temp['Кабинет'] != "" or temp['Преподаватель'] != "":
                             finished_text[key] += f"{value} Пара <b>({temp['Время']})</b>\n{i}\n"
                             if data_user['name']:
                                 finished_text[key] += f"{temp['Наименование']}"
@@ -310,11 +310,10 @@ class StudentsSchedule:
                                 finished_text[key] += f"\n{temp['Преподаватель']}"
                             finished_text[key] += "\n-------------------------\n"
                 else:
-                    if data_schedule[key][value]['Наименование'] != "":
+                    if data_schedule[key][value]['Наименование'] != "" or data_schedule[key][value]['Кабинет'] != "" or data_schedule[key][value]['Преподаватель'] != "":
                         data = data_schedule[key][value]
 
                         finished_text[key] += f"{value} Пара <b>({data['Время']})</b>\n"
-
                         if data_user['name']:
                             finished_text[key] += f"{data['Наименование']}"
                         if data_user['cabinet']:
@@ -344,14 +343,14 @@ class StudentsSchedule:
                 elif temp_arr[0].find("подгруппа") != -1:
                     for i in temp_arr:
                         temp = data_schedule[key][value][i]
-                        if temp['Наименование'] != "":
+                        if temp['Наименование'] != "" or temp['Кабинет'] != "" or temp['Преподаватель'] != "":
                             finished_text[key] += f"{value} Пара <b>({temp['Время']})</b>\n{i}\n"
                             finished_text[key] += f"{temp['Наименование']}"
                             finished_text[key] += f"\nКабинет - <b>{temp['Кабинет']}</b>"
                             finished_text[key] += f"\n{temp['Преподаватель']}"
                             finished_text[key] += "\n-------------------------\n"
                 else:
-                    if data_schedule[key][value]['Наименование'] != "":
+                    if data_schedule[key][value]['Наименование'] != "" or data_schedule[key][value]['Кабинет'] != "" or data_schedule[key][value]['Преподаватель'] != "":
                         data = data_schedule[key][value]
 
                         finished_text[key] += f"{value} Пара <b>({data['Время']})</b>\n"
@@ -623,7 +622,7 @@ class TeacherSchedule:
                 if value == "День":
                     finished_text[key] += f"{key} - {data_schedule[key][value]}\n"
                 else:
-                    if data_schedule[key][value]['Наименование'] != "":
+                    if data_schedule[key][value]['Наименование'] != "" or data_schedule[key][value]['Кабинет'] != "" or data_schedule[key][value]['Группы'] != "":
                         data = data_schedule[key][value]
 
                         finished_text[key] += f"{value} Пара <b>({data['Время']})</b>\n"
@@ -651,7 +650,7 @@ class TeacherSchedule:
                 if value == "День":
                     finished_text[key] += f"{key} - {data[key][value]}\n"
                 else:
-                    if data[key][value]['Наименование'] != "":
+                    if data[key][value]['Наименование'] != "" or data[key][value]['Кабинет'] != "" or data[key][value]['Группы'] != "":
                         temp = data[key][value]
 
                         finished_text[key] += f"{value} Пара <b>({temp['Время']})</b>\n"
@@ -1019,7 +1018,11 @@ async def view_group(call, prefix="student_schedule_group", step=None):
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
-    await call.message.edit_text(text="------ Выберите преподавателя -------", reply_markup=markup,
+    if temp[0] == "teacher":
+        text = "------ Выберите преподавателя -------"
+    else:
+        text = "------ Выберите группу -------"
+    await call.message.edit_text(text=text, reply_markup=markup,
                                           parse_mode=ParseMode.HTML)
 
 
@@ -1515,7 +1518,7 @@ async def check_change_schedule():
 
 async def on_startup(_):
     scheduler = AsyncIOScheduler(timezone="Asia/Omsk")
-    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sat", minute="*/30")
+    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sun", minute="*/30")
     scheduler.start()
 
 
