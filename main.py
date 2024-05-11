@@ -47,7 +47,10 @@ class StudentGroup:
                          "Группы" : {}}
 
             for i in data.findAll("a", class_="z0"):
-                name_list["Группы"][i.text] = i.attrs['href']
+                if i.text == "Заявка" or i.text == "Совещание":
+                    pass
+                else:
+                    name_list["Группы"][i.text] = i.attrs['href']
 
             await self.write_file(name_list)
 
@@ -143,6 +146,7 @@ class StudentsSchedule:
             with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
                 file.write('{}')
                 file.close()
+            return True
 
     # Запись данных в файл
     async def write_file(self, data=None):
@@ -164,6 +168,7 @@ class StudentsSchedule:
             file.close()
 
         if not data:
+            await self.check_change
             return True
 
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
@@ -175,7 +180,8 @@ class StudentsSchedule:
             result = str(datetime.datetime.strptime(time_update_list, "%d.%m.%Y %H:%M")-datetime.datetime.strptime(date_now, "%d.%m.%Y %H:%M"))
 
         if int(result[:1]) >= 1 or str(result).find("day") != -1:
-            return True
+            await self.check_change
+            return False
         else:
             return False
 
@@ -184,6 +190,8 @@ class StudentsSchedule:
         if check_update:
             if await self.check_update:
                 await self.write_file()
+        else:
+            await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -198,7 +206,7 @@ class StudentsSchedule:
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
 
         data_schedule = dict()
-        data_schedule["Обновлено"] = ""
+        data_schedule["Обновлено"] = date_now
         data_schedule["Расписание"] = {}
         date = date_now[:10]
 
@@ -256,8 +264,7 @@ class StudentsSchedule:
                             temp["Преподаватель"] = ", ".join(t.text for t in j.findAll("a", class_="z3"))
 
                             count += 1
-
-                    data_schedule["Обновлено"] = date_now
+                    # data_schedule["Обновлено"] = date_now
                 else:
                     temp = data_schedule["Расписание"][date][temporary_number]
 
@@ -271,8 +278,7 @@ class StudentsSchedule:
 
                     temp["Преподаватель"] = ", ".join(t.text for t in temp_data.findAll("a", class_="z3"))
                     temp["Кабинет"] = temp_data.find("a", class_="z2").text
-
-                    data_schedule["Обновлено"] = date_now
+                    # data_schedule["Обновлено"] = date_now
         return data_schedule
 
     # Преобразование данных в готовый текст с учетом пользовательских настроек
@@ -362,11 +368,16 @@ class StudentsSchedule:
             return finished_text
 
     # Проверка на наличие изменений
+    @property
     async def check_change(self):
+        print("Check changes")
         data_old = await self.get_data_file(check_update=False)
-
+        if data_old == dict():
+            return
         data_new = await self.conversion_to_json
+
         await self.write_file(data_new)
+
         change = {}
         temp_change = False
         for i in data_new['Расписание']:
@@ -487,6 +498,7 @@ class TeacherSchedule:
             with open(f'./json/{self.type}/{self.name_group}.json', 'w', encoding="utf-8") as file:
                 file.write('{}')
                 file.close()
+            return True
 
     # Запись данных в файл
     async def write_file(self, data=None):
@@ -508,6 +520,7 @@ class TeacherSchedule:
             file.close()
 
         if not data:
+            await self.check_change
             return True
 
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
@@ -523,7 +536,8 @@ class TeacherSchedule:
                                                                                                             "%d.%m.%Y %H:%M"))
 
         if int(result[:1]) >= 1 or str(result).find("day") != -1:
-            return True
+            await self.check_change
+            return False
         else:
             return False
 
@@ -532,6 +546,8 @@ class TeacherSchedule:
         if check_update:
             if await self.check_update:
                 await self.write_file()
+        else:
+            await self.check_exists
 
         with open(f'./json/{self.type}/{self.name_group}.json', 'r', encoding="utf-8") as file:
             data = json.load(file)
@@ -542,9 +558,7 @@ class TeacherSchedule:
     # Преобразование данных в формат json
     @property
     async def conversion_to_json(self):
-        st = time.time()
         data = await self.get_data
-        print(time.time()-st)
         data_json = dict()
         date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d.%m.%Y %H:%M")
 
@@ -653,9 +667,11 @@ class TeacherSchedule:
         return finished_text
 
     # Проверка на наличие изменений
+    @property
     async def check_change(self):
         data_old = await self.get_data_file(check_update=False)
-
+        if data_old == dict():
+            return
         data_new = await self.conversion_to_json
         await self.write_file(data_new)
 
@@ -809,6 +825,13 @@ class User:
         with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
             json.dump(data, file)
             file.close()
+
+        if self.type == "teacher":
+            if await TeacherSchedule(url=link, name_group=name).check_exists:
+                await TeacherSchedule(url=link, name_group=name).get_data_file()
+        elif self.type == "student":
+            if await StudentsSchedule(url=link, name_group=name).check_exists:
+                await StudentsSchedule(url=link, name_group=name).get_data_file()
 
     # Удаление избранной группы
     async def remove_favourite_group(self, name):
@@ -1044,7 +1067,6 @@ async def view_schedule(call, group, period, prefix):
     else:
         markup = InlineKeyboardMarkup(row_width=3)
         data_keys = list(data.keys())
-        print(data_keys)
 
         for i in data:
             if int(i[:2]) == int(datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d")):
@@ -1089,7 +1111,7 @@ async def personal_settings_menu(call, prefix):
 
         data = (await User(prefix, call.from_user.id).get_data)[str(call.from_user.id)]
         temp = data['format_text']
-        print(temp)
+
         await call.message.edit_text((
                                     f"Настройки:\n\nФормат текста\n"
                                     f"Выводить название предмета: {temp['name']}\n"
@@ -1465,14 +1487,13 @@ async def menu(message: types.Message):
 
 
 async def check_change_schedule():
-    print('Enable')
+    print('Enable check change')
     data_name = await User("student").get_name_group_alert_enable
 
     if data_name is not None:
         count = 0
         for i in data_name:
-            print(i)
-            await StudentsSchedule(name_group=i, url=data_name[i]).check_change()
+            await StudentsSchedule(name_group=i, url=data_name[i]).check_change
             count += 1
 
             if count % 10 == 0:
@@ -1485,8 +1506,7 @@ async def check_change_schedule():
     if data_name is not None:
         count = 0
         for i in data_name:
-            print(i)
-            await TeacherSchedule(name_group=i, url=data_name[i]).check_change()
+            await TeacherSchedule(name_group=i, url=data_name[i]).check_change
             count += 1
 
             if count % 10 == 0:
@@ -1495,7 +1515,7 @@ async def check_change_schedule():
 
 async def on_startup(_):
     scheduler = AsyncIOScheduler(timezone="Asia/Omsk")
-    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sat", minute="*/30")
+    scheduler.add_job(check_change_schedule, trigger='cron', hour="7-21", day_of_week="mon-sat", minute="*/36")
     scheduler.start()
 
 
