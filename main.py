@@ -740,6 +740,9 @@ class User:
     # Проверка на существование файла
     @property
     async def check_exists(self):
+        if not os.path.exists(f'./json/{self.type}'):
+            os.mkdir(f'./json/{self.type}')
+
         if not os.path.exists(f"json/{self.type}_settings.json"):
             with open(f"json/{self.type}_settings.json", "w", encoding="utf-8") as file:
                 file.write("{}")
@@ -1084,8 +1087,10 @@ async def view_favourite_group(call, prefix):
     temp = prefix.split("_")
     if temp[0] == "student":
         row_width = 3
+        text = "Выберите группу"
     else:
         row_width = 1
+        text = "Выберите преподавателя"
 
     data = (await User(temp[0], call.from_user.id).get_data)[str(call.from_user.id)]["favourite_group"]
 
@@ -1098,7 +1103,7 @@ async def view_favourite_group(call, prefix):
     markup.add(*keys_group)
     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{temp[0]}_menu"))
 
-    await call.message.edit_text(text="Выберите группу", reply_markup=markup)
+    await call.message.edit_text(text=text, reply_markup=markup)
 
 
 async def personal_settings_menu(call, prefix):
