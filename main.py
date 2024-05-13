@@ -1130,7 +1130,7 @@ async def personal_settings_menu(call, prefix):
     else:
         markup.add(InlineKeyboardButton(text="Название", callback_data=f"{prefix}_settings_name"),
                    InlineKeyboardButton(text="Кабинет", callback_data=f"{prefix}_settings_cabinet"),
-                   InlineKeyboardButton(text="группы", callback_data=f"{prefix}_settings_groups"))
+                   InlineKeyboardButton(text="Группы", callback_data=f"{prefix}_settings_groups"))
         markup.add(InlineKeyboardButton(text="Оповещение", callback_data=f"{prefix}_settings_notification"))
 
         markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_menu"))
