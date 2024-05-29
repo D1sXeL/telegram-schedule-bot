@@ -882,6 +882,7 @@ class User:
 # Класс необходим для ожидания сообщения от пользователя.
 class Form(StatesGroup):
     name = State()
+    type = State()
 
 
 async def notification_schedule(data, id_profile):
@@ -1037,6 +1038,7 @@ async def period_schedule(call, prefix, group):
                InlineKeyboardButton(text="На 3 дня", callback_data=f"{prefix}_view_{group}_{3}"),
                InlineKeyboardButton(text="На 7 дней", callback_data=f"{prefix}_view_{group}_{7}"),
                InlineKeyboardButton(text="Полностью", callback_data=f"{prefix}_view_{group}_{14}"))
+    markup.add(InlineKeyboardButton(text="Ближайшее занятие", callback_data=f"{prefix}_view_{group}_nl"))
     markup.add(InlineKeyboardButton(text="Вернуться обратно", callback_data=f"return_{prefix}_group"))
 
     await call.message.edit_text(text="Выберите за какой период показать расписание", reply_markup=markup)
@@ -1051,6 +1053,23 @@ async def view_schedule(call, group, period, prefix):
         data_group = (await TeacherGroup().conversion_data)['Группы']
         name_group = list(data_group.keys())[list(data_group.values()).index(group)]
         data = await TeacherSchedule(group, name_group).conversion_to_text(call.from_user.id)
+
+    if period == "nl":
+        count = 0
+        for i in data:
+            temp = datetime.datetime(int(i[-4:]), int(i[-7:-5:]), int(i[:2])) - datetime.datetime.now()
+
+            if temp.days == 0 and temp.seconds / 60 / 60 <= 24 or temp.days >= 0:
+                if data[i].find('Выходной день') == -1:
+                    # print(temp)
+                    await call.message.answer(text=data[i], parse_mode=ParseMode.HTML)
+                    return
+
+        await call.message.answer(text="Занятий не найдено!", parse_mode=ParseMode.HTML)
+        return
+
+    else:
+        period = int(period)
 
     if period > 0:
         count = 0
@@ -1160,8 +1179,9 @@ async def view_next_back_schedule(call, date, group, prefix):
     markup = InlineKeyboardMarkup(row_width=3)
 
     data_keys = list(data.keys())
+    date_now = datetime.datetime.now(pytz.timezone('Europe/Moscow'))
     for i in data_keys.copy():
-        if int(i[:2]) < int(datetime.datetime.now(pytz.timezone('Europe/Moscow')).strftime("%d")):
+        if int(i[:2]) < int(date_now.strftime("%d")) and int(i[3:5]) == int(date_now.strftime("%m")):
             del data_keys[data_keys.index(i)]
 
     day = data_keys.index(date)
@@ -1193,28 +1213,62 @@ async def cancel_handler(message: types.Message, state: FSMContext):
 
 @dp.message_handler(state=Form.name)
 async def process_name(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['name'] = message.text
-
+    type = dict(await state.get_data())['type']
     await state.finish()
+    find_group = dict()
 
-    try:
-        temp = (await StudentGroup().conversion_data)['Группы'][message.text]
-        temp_name = "student"
-    except KeyError:
-        try:
-            temp = (await TeacherGroup().conversion_data)['Группы'][message.text]
-            temp_name = "teacher"
-        except KeyError:
-            await message.answer("Ошибка!")
-            return False
+    if type == "student":
+        list_group = (await StudentGroup().conversion_data)['Группы']
 
+    elif type == "teacher":
+        list_group = (await TeacherGroup().conversion_data)['Группы']
+
+    for i in list_group:
+        print(i)
+        if i.lower().find(message.text.lower()) != -1:
+            find_group[i] = list_group[i]
+
+    if len(find_group) > 50:
+        if type == "student":
+            await message.answer("Групп было найдено слишком много. Введите более точное название!")
+        else:
+            await message.answer("Преподавателей было найдено слишком много. Введите более точнее!")
+        return
+    elif len(find_group) == 0:
+        await message.answer("Ничего не найдено!")
+        return
+
+    await view_group_search(message, find_group, type)
+
+
+async def view_group_search(message, list_group, type):
+
+    if type == "teacher":
+        text = "------ Выберите преподавателя -------"
+        row_width = 1
+    else:
+        text = "------ Выберите группу -------"
+        row_width = 3
+
+    markup = InlineKeyboardMarkup(row_width=row_width)
+
+
+    markup_list = []
+    for i in list_group:
+        markup_list.append(InlineKeyboardButton(text=f"{i}", callback_data=f"{type}_search_s_{list_group[i]}"))
+
+    markup.add(*markup_list)
+
+    await message.answer(text=text, reply_markup=markup)
+
+
+async def view_select_action_group(call, link_group, type):
     markup = InlineKeyboardMarkup(row_width=3)
 
-    markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{temp_name}_search_add_{temp}"))
-    markup.add(InlineKeyboardButton(text="Получить расписание", callback_data=f"{temp_name}_search_view_{temp}"))
+    markup.add(InlineKeyboardButton(text="Добавить в избранное", callback_data=f"{type}_search_add_{link_group}"))
+    markup.add(InlineKeyboardButton(text="Получить расписание", callback_data=f"{type}_search_view_{link_group}"))
 
-    await message.answer(text="Выберите действие", reply_markup=markup)
+    await call.message.answer(text="Выберите действие", reply_markup=markup)
 
 
 @dp.callback_query_handler()
@@ -1247,7 +1301,7 @@ async def func1(call: types.CallbackQuery):
                 if len(req) == 3:
                     await view_group(call, req[0]+"_f_a")
                 elif len(req) == 5:
-                    await view_schedule(call, req[3], int(req[4]), req[0])
+                    await view_schedule(call, req[3], req[4], req[0])
 
             elif req[2] == "group":
                 await period_schedule(call, req[0]+"_favourite", req[3])
@@ -1279,7 +1333,7 @@ async def func1(call: types.CallbackQuery):
                 await view_group(call, req[0]+"_f_a", int(req[3])*-1)
 
         elif req[1] == "view":
-            await view_schedule(call, req[2], int(req[3]), req[0])
+            await view_schedule(call, req[2], req[3], req[0])
 
         elif req[1] == "next":
             await view_next_back_schedule(call, req[2], req[3], req[0])
@@ -1340,8 +1394,15 @@ async def func1(call: types.CallbackQuery):
                 await call.message.answer(f"Группа {name_group} была добавлена в избранное!")
 
             elif req[2] == "main":
+                state = dp.current_state(chat=call.message.chat.id, user=call.from_user.id)
+                await state.update_data({"type": "student"})
+
                 await Form.name.set()
-                await call.message.answer("Введите название группы(Вводить нужно как на сайте). Для отмены введите команду /cancel")
+                await call.message.answer("Введите название группы. Для отмены введите команду /cancel")
+
+            #     s = select
+            elif req[2] == "s":
+                await view_select_action_group(call, req[3], req[0])
 
     # ------------------
     elif req[0] == "teacher":
@@ -1364,7 +1425,7 @@ async def func1(call: types.CallbackQuery):
                 await view_group(call, req[0] + "_s_g", int(req[3])*-1)
 
         elif req[1] == "view":
-            await view_schedule(call, req[2], int(req[3]), req[0])
+            await view_schedule(call, req[2], req[3], req[0])
 
         elif req[1] == "next":
             await view_next_back_schedule(call, req[2], req[3], req[0])
@@ -1417,7 +1478,7 @@ async def func1(call: types.CallbackQuery):
                 if len(req) == 3:
                     await view_group(call, req[0] + "_f_a")
                 elif len(req) == 5:
-                    await view_schedule(call, req[3], int(req[4]), req[0])
+                    await view_schedule(call, req[3], req[4], req[0])
 
             elif req[2] == "group":
                 await period_schedule(call, req[0]+"_favourite", req[3])
@@ -1460,8 +1521,15 @@ async def func1(call: types.CallbackQuery):
                 await call.message.answer(f"{name_group} был(а) добавлен(а) в избранное!")
 
             elif req[2] == "main":
+                state = dp.current_state(chat=call.message.chat.id, user=call.from_user.id)
+                await state.update_data({"type": "teacher"})
+
                 await Form.name.set()
-                await call.message.answer("Введите ФИО(Вводить нужно как на сайте). Для отмены введите команду /cancel")
+                await call.message.answer("Введите ФИО. Для отмены введите команду /cancel")
+
+            # s = select
+            elif req[2] == "s":
+                await view_select_action_group(call, req[3], req[0])
 
     # ---------------
     elif req[0] == "return":
